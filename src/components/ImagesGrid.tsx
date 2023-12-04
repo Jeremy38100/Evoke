@@ -1,6 +1,6 @@
 import { CSSProperties, useEffect, useState } from 'react'
-import { Game, GameStatus, ImageCard, Player } from './model'
-import { COLORS } from './imagesUtils'
+import { Game, GameStatus, ImageCard, Player } from '../models/model'
+import { COLORS } from '../utils/imagesUtils'
 
 export interface ChoseImageOpts {
     image: ImageCard,

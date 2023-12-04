@@ -1,4 +1,4 @@
-import { Game, GameStatus, Player, TeamId } from "./model"
+import { Game, GameStatus, Player, TeamId } from "../models/model"
 
 export interface TeamPlayersProps {
     myPlayer: Player

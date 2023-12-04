@@ -1,10 +1,10 @@
-import Peer, { DataConnection } from 'peerjs';
 import { useFormik } from 'formik';
+import Peer, { DataConnection } from 'peerjs';
 import { useEffect, useRef, useState } from 'react';
-import ImagesGrid, { ChoseImageOpts, ImagesGridProps } from './ImagesGrid';
-import { NoTeamPlayers, TeamPlayers, TeamPlayersProps } from './Team';
-import { COLORS, getImages } from './imagesUtils';
-import { Game, GameStatus, ImageCard, Player, Team, TeamId } from './model';
+import ImagesGrid, { ChoseImageOpts, ImagesGridProps } from './components/ImagesGrid';
+import { NoTeamPlayers, TeamPlayers, TeamPlayersProps } from './components/Team';
+import { Game, GameStatus, ImageCard, Player, Team, TeamId } from './models/model';
+import { COLORS, getImages } from './utils/imagesUtils';
 
 enum MESSAGES {
   HELLO = 'HELLO',
