@@ -18,7 +18,7 @@ Follow these steps to set up and run the project locally on your machine:
 1. Clone this repository to your machine (prefer ssh access):
 
    ```bash
-   git clonegit@github.com:Jeremy38100/Evoke.git
+   git clone git@github.com:Jeremy38100/Evoke.git
    cd evoke
    ```
 2. Install dependencies using pnpm:
