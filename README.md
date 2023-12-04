@@ -15,31 +15,36 @@ Evoke is a fun and interactive game where players try to guess words based on ca
 
 Follow these steps to set up and run the project locally on your machine:
 
-1. Clone this repository to your machine:
+1. Clone this repository to your machine (prefer ssh access):
+
    ```bash
-   git clone https://github.com/your-username/evoke.git
+   git clonegit@github.com:Jeremy38100/Evoke.git
    cd evoke
    ```
 2. Install dependencies using pnpm:
-    - If you do not have pnpm: [Install it](https://pnpm.io/installation)
+
+   - If you do not have pnpm: [Install it](https://pnpm.io/installation)
+
    ```bash
    pnpm install
    ```
 3. Images dependencies
-    - Put your images in `public/images/` directory
-    - Create a `images.json` file in `assets/` directory. It's an array of string with images filenames. eg :
-    ```json
-    [
-        "image_20.webp",
-        "image_112.webp",
-        "image_77.webp",
-    ]
-    ```
 
-3. Launch the application in development mode:
-    ```bash
-    pnpm run dev
-    ```
+   - Put your images in `public/images/` directory
+   - Create a `images.json` file in `assets/` directory. It's an array of string with images filenames. eg :
+
+   ```json
+   [
+       "image_20.webp",
+       "image_112.webp",
+       "image_77.webp",
+   ]
+   ```
+4. Launch the application in development mode:
+
+   ```bash
+   pnpm run dev
+   ```
 
 ## To-Do
 
