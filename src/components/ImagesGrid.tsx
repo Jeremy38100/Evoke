@@ -1,26 +1,20 @@
 import { CSSProperties, useEffect, useState } from 'react'
-import { Game, GameStatus, ImageCard, Player } from '../models/model'
+import { useGameContext } from '../context/GameContext'
+import { GameStatus, ImageCard } from '../models/model'
 import { COLORS } from '../utils/imagesUtils'
 
-export interface ChoseImageOpts {
-    image: ImageCard,
-    player: Player
-}
+function ImagesGrid() {
 
-export interface ImagesGridProps {
-    gameData: Game,
-    myPlayer: Player
-    choseImage: (opts: ChoseImageOpts) => void,
-    hintCard: (image: ImageCard) => void
-}
-function ImagesGrid({ gameData, myPlayer, choseImage, hintCard }: ImagesGridProps) {
+    const { game, getMyPlayer, hintCard, choseCard } = useGameContext()
+
+    const myPlayer = getMyPlayer()!
 
     // Use -1 to disable modal, imageIndex in gameData.images otherwise
     const [modalImageIndex, setModalImageIndex] = useState(-1)
 
     useEffect(() => {
         const handleEscapeKey = ({ key }: KeyboardEvent) => {
-            const incrementImageArray = (inc: number) => setModalImageIndex(prev => (prev + inc + gameData.images.length) % gameData.images.length)
+            const incrementImageArray = (inc: number) => setModalImageIndex(prev => (prev + inc + game.images.length) % game.images.length)
             if (key === 'Escape') setModalImageIndex(-1)
             else if (key == 'ArrowRight') incrementImageArray(1)
             else if (key == 'ArrowLeft') incrementImageArray(-1)
@@ -29,12 +23,12 @@ function ImagesGrid({ gameData, myPlayer, choseImage, hintCard }: ImagesGridProp
         return () => {
             window.removeEventListener('keydown', handleEscapeKey)
         }
-    }, [gameData])
+    }, [game])
 
     const getColorImage = ({ imageTeam, flippedByTeam, isHint }: ImageCard) => {
         if (isHint) return COLORS.HINT // Everyone can see the hint
 
-        const isColorVisibleByPlayer = myPlayer.isGameMaster || flippedByTeam || gameData.gameStatus == GameStatus.ENDED
+        const isColorVisibleByPlayer = myPlayer.isGameMaster || flippedByTeam || game.gameStatus == GameStatus.ENDED
         if (!isColorVisibleByPlayer) return 'transparent'
 
         if (imageTeam == 'teamBlue') return COLORS.BLUE
@@ -44,18 +38,18 @@ function ImagesGrid({ gameData, myPlayer, choseImage, hintCard }: ImagesGridProp
     }
 
     const getFilterImage = (image: ImageCard) => {
-        if (gameData.gameStatus == GameStatus.ENDED) return ''
+        if (game.gameStatus == GameStatus.ENDED) return ''
         if (image.flippedByTeam) return 'grayscale(100%)'
         return ''
     }
 
-    const modalImage = modalImageIndex < 0 ? undefined : gameData.images[modalImageIndex]
+    const modalImage = modalImageIndex < 0 ? undefined : game.images[modalImageIndex]
 
     const isButtonVisible = (image: ImageCard) =>
-        gameData.gameStatus == GameStatus.RUNNING &&
+        game.gameStatus == GameStatus.RUNNING &&
         image.flippedByTeam == '' &&
         !myPlayer.isGameMaster &&
-        gameData.teamPlaying === myPlayer.teamId
+        game.teamPlaying === myPlayer.teamId
 
     const styles: Record<string, CSSProperties> = {
         // TODO: rework this to adapt row/col grid layout
@@ -100,7 +94,7 @@ function ImagesGrid({ gameData, myPlayer, choseImage, hintCard }: ImagesGridProp
                 </div>
             </div>}
             <div style={styles.gridContainer}>
-                {gameData.images.map((image, index) => (
+                {game.images.map((image, index) => (
                     <div key={index} style={styles.gridItem} >
                         <img
                             alt={`image-${index}`}
@@ -116,7 +110,7 @@ function ImagesGrid({ gameData, myPlayer, choseImage, hintCard }: ImagesGridProp
                             <span style={{ margin: '0 .8em' }}>{index}</span>
 
                             {isButtonVisible(image) &&
-                                <button style={styles.button} onClick={() => choseImage({ image, player: myPlayer })} >👌</button>
+                                <button style={styles.button} onClick={() => choseCard({ imageId: image.imageId, player: myPlayer })} >👌</button>
                             }
                         </div>
                     </div>
