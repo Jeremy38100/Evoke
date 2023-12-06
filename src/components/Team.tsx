@@ -1,23 +1,25 @@
-import { Game, GameStatus, Player, TeamId } from "./model"
+import { useGameContext } from "../context/GameContext"
+import { GameStatus, TeamId } from "../models/model"
 
 export interface TeamPlayersProps {
-    myPlayer: Player
-    gameData: Game
     teamId: TeamId
-    joinTeam: (teamId: TeamId, isGameMaster: boolean) => void
 }
 
-export const TeamPlayers = ({ myPlayer, gameData, teamId, joinTeam }: TeamPlayersProps) => {
-    const getPlayersInTeam = () => Object.values(gameData.players).filter(p => p.teamId === teamId)
+export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
+    const { game, getMyPlayer, setMyPlayerTeam } = useGameContext()
+
+    const myPlayer = getMyPlayer()!
+
+    const getPlayersInTeam = () => Object.values(game.players).filter(p => p.teamId === teamId)
     const getGameMasters = () => getPlayersInTeam().filter(({ isGameMaster }) => isGameMaster)
     const getPlayers = () => getPlayersInTeam().filter(({ isGameMaster }) => !isGameMaster)
 
-    const canSelectTeam = gameData.gameStatus == GameStatus.WAITING_TO_START || true
+    const canSelectTeam = game.gameStatus == GameStatus.WAITING_TO_START || true
     const amIInThisTeam = myPlayer.teamId == teamId
     const amIGameMasterInThisTeam = amIInThisTeam && myPlayer.isGameMaster
     const amIPLayerInThisTeam = amIInThisTeam && !myPlayer.isGameMaster
 
-    const joinAsGameMaster = (isGameMaster: boolean) => joinTeam(teamId, isGameMaster)
+    const joinAsGameMaster = (isGameMaster: boolean) => setMyPlayerTeam(teamId, isGameMaster)
 
     return (
         <div>
@@ -40,8 +42,9 @@ export const TeamPlayers = ({ myPlayer, gameData, teamId, joinTeam }: TeamPlayer
     )
 }
 
-export const NoTeamPlayers = ({ gameData }: TeamPlayersProps) => {
-    const getPlayersWithoutTeam = () => Object.values(gameData.players).filter(({ teamId }) => !teamId)
+export const NoTeamPlayers = () => {
+    const { game } = useGameContext()
+    const getPlayersWithoutTeam = () => Object.values(game.players).filter(({ teamId }) => !teamId)
     return (
         <div>
             <p>🧟‍♂️ No Teams</p>

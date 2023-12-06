@@ -1,5 +1,5 @@
-import { ImageCard } from "./model";
-import images from './assets/images.json'
+import { ImageCard } from "../models/model";
+import images from '../assets/images.json'
 
 
 /**
