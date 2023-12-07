@@ -29,13 +29,13 @@ Follow these steps to set up and run the project locally on your machine:
 3. Images dependencies
 
    - Put your images in `public/images/` directory
-   - Create a `images.json` file in `assets/` directory. It's an array of string with images filenames. eg :
+   - Update a `images.json` file in `assets/` directory. It's an array of string with images filenames. eg :
 
    ```json
    [
-       "image_20.webp",
-       "image_112.webp",
-       "image_77.webp",
+       "image_0.webp",
+       "image_1.webp",
+       "image_2.webp",
    ]
    ```
 4. Launch the application in development mode:
@@ -52,8 +52,7 @@ To run the tests in this project, run
    npm run test
    ```
 
-This will build the project, and run a webserver on port 4173 then run tests
-
+This will build the project, and run a web server on port 4173 then run tests
 
 
 ## To-Do
