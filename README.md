@@ -4,12 +4,12 @@ Evoke is a fun and interactive game where players try to guess words based on ca
 
 ## Technologies Used
 
-- [Vite](https://vitejs.dev/): A fast build tool for modern web applications.
-- [pnpm](https://pnpm.io/): A fast and efficient package manager.
-- [React](https://reactjs.org/): A JavaScript library for building user interfaces.
-- [TypeScript](https://www.typescriptlang.org/): A statically typed programming language that enhances code safety and maintainability.
-- [PeerJS](https://peerjs.com/): A JavaScript library for WebRTC peer-to-peer communication.
-- DALL-E: A powerful image generation model by OpenAI for creating unique and creative images.
+- ⚡️ [Vite](https://vitejs.dev/): A fast build tool for modern web applications.
+- 🌐 [React](https://reactjs.org/): A JavaScript library for building user interfaces.
+- ✅ [TypeScript](https://www.typescriptlang.org/): A statically typed programming language that enhances code safety and maintainability.
+- 📨 [PeerJS](https://peerjs.com/): A JavaScript library for WebRTC peer-to-peer communication.
+- 🧪[Playwright](https://playwright.dev/): A powerful library for controlling multiple pages in parallel.
+- 🖼️ DALL-E: A powerful image generation model by OpenAI for creating unique and creative images.
 
 ## Configuration and Installation
 
@@ -21,12 +21,10 @@ Follow these steps to set up and run the project locally on your machine:
    git clone git@github.com:Jeremy38100/Evoke.git
    cd evoke
    ```
-2. Install dependencies using pnpm:
-
-   - If you do not have pnpm: [Install it](https://pnpm.io/installation)
+2. Install dependencies using npm:
 
    ```bash
-   pnpm install
+   npm install
    ```
 3. Images dependencies
 
@@ -43,8 +41,20 @@ Follow these steps to set up and run the project locally on your machine:
 4. Launch the application in development mode:
 
    ```bash
-   pnpm run dev
+   npm run dev
    ```
+
+## Running Tests
+
+To run the tests in this project, run
+
+   ```bash
+   npm run test
+   ```
+
+This will build the project, and run a webserver on port 4173 then run tests
+
+
 
 ## To-Do
 

@@ -1,6 +1,6 @@
 import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Game, ImageCard, Player, TeamId } from '../models/model'
-import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, removePlayerFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/gameUtils'
+import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/gameUtils'
 import { MESSAGES, OnMessageCb, usePeerJSContext } from './PeerJSContext'
 
 interface GameContextData {
@@ -31,6 +31,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         Important note Socket wrapper around game that's why you never have to
         use setGame (but updateGame) elsewhere than:
+            - set gameId
             - client receive instruction from server to update the game
             - you are the host in the updateGame wrapper
     */
@@ -39,6 +40,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     useEffect(() => {
         gameRef.current = game
     }, [game])
+
+    useEffect(() => {
+        setGame(prev => ({ ...prev, gameId: peerId }))
+    }, [peerId])
 
     useEffect(() => {
         if (!amIHost()) return
@@ -63,10 +68,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [updateGame])
 
     // TODO: use this
-    const removePlayer = useCallback((id: string) => {
-        if (!amIHost()) return
-        updateGame(newGame => removePlayerFromGame(newGame, id))
-    }, [amIHost, updateGame])
+    // const removePlayer = useCallback((id: string) => {
+    //     if (!amIHost()) return
+    //     updateGame(newGame => removePlayerFromGame(newGame, id))
+    // }, [amIHost, updateGame])
 
     const updatePlayer = useCallback((player: Player) => {
         if (!amIHost()) return sendMessageRef.current(MESSAGES.UPDATE_PLAYER, player)
@@ -116,14 +121,14 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     useEffect(() => {
         const onMessageCb: OnMessageCb = ({ message, data }) => {
             // Host-received messages
-            if (message == MESSAGES.UPDATE_PLAYER) updatePlayer(data)
-            else if (message == MESSAGES.HINT_IMAGE) hintCard(data)
-            else if (message == MESSAGES.CHOSE_IMAGE) choseCard(data)
-            else if (message == MESSAGES.OK_NEXT_TEAM) OkNextTeam()
+            if (message === MESSAGES.UPDATE_PLAYER) updatePlayer(data)
+            else if (message === MESSAGES.HINT_IMAGE) hintCard(data)
+            else if (message === MESSAGES.CHOSE_IMAGE) choseCard(data)
+            else if (message === MESSAGES.OK_NEXT_TEAM) OkNextTeam()
 
             // Client-received messages
-            else if (message == MESSAGES.UPDATE_GAME) setGame(data)
-            else if (message == MESSAGES.GET_PLAYER) updatePlayer({
+            else if (message === MESSAGES.UPDATE_GAME) setGame(data)
+            else if (message === MESSAGES.GET_PLAYER) updatePlayer({
                 id: peerId,
                 name: myPlayerName,
                 isGameMaster: false,

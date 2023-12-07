@@ -17,7 +17,7 @@ export const getDefaultGameData = (): Game => ({
 })
 
 export const getOtherTeam = (team: TeamId): TeamId => {
-  if (team == 'teamBlue') return 'teamRed'
+  if (team === 'teamBlue') return 'teamRed'
   return 'teamBlue'
 }
 
@@ -72,7 +72,7 @@ export const updatePlayerFromGame = (game: Game, player: Player): Game => {
 }
 
 export const hintCardFromGame = (game: Game, imageId: string): Game => {
-  const imageFromGame = game.images.find(i => i.imageId == imageId)
+  const imageFromGame = game.images.find(i => i.imageId === imageId)
   if (!imageFromGame)
     console.error('can not find image', imageId)
   else
@@ -95,17 +95,17 @@ export const choseCardFromGame = (game: Game, { imageId, player }: ChoseImageOpt
   const playerTeamId = player.teamId
   const otherTeamId = getOtherTeam(playerTeamId)
 
-  const playerTeam = game.teams.find(t => t.teamId == playerTeamId)
+  const playerTeam = game.teams.find(t => t.teamId === playerTeamId)
   if (!playerTeam) throw Error('Can not playerTeam ' + playerTeamId)
 
-  const imageFromGame = game.images.find(i => i.imageId == imageId) // TODO: use Record instead of Array
+  const imageFromGame = game.images.find(i => i.imageId === imageId) // TODO: use Record instead of Array
   if (!imageFromGame) throw Error('Can not find image: ' + imageId)
 
   imageFromGame.flippedByTeam = playerTeamId
   imageFromGame.isHint = false
   const imageTeam = imageFromGame!.imageTeam
 
-  if (imageTeam == 'dead') return endGame(game, otherTeamId)
+  if (imageTeam === 'dead') return endGame(game, otherTeamId)
 
   playerTeam.nbTryLeft -= 1
   if (imageTeam !== playerTeamId) {

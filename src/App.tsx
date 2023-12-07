@@ -15,9 +15,9 @@ const App = () => {
   const [joinRoomInput, setJoinRoomInput] = useState('')
 
   const colorToPlay = () => game.teamPlaying === 'teamBlue' ? COLORS.BLUE : COLORS.RED
-  const getTeam = (teamId: TeamId): Team => game.teams.find(t => t.teamId == teamId)!
+  const getTeam = (teamId: TeamId): Team => game.teams.find(t => t.teamId === teamId)!
   const getRemainingCardsTeam = (teamId: TeamId): number =>
-    game.images.filter(i => i.imageTeam == teamId && !i.flippedByTeam).length
+    game.images.filter(i => i.imageTeam === teamId && !i.flippedByTeam).length
 
   const nameForm = useFormik({
     initialValues: { name: '' },
@@ -34,27 +34,26 @@ const App = () => {
           <form onSubmit={nameForm.handleSubmit}>
             <label>Pseudo</label>
             <input name="name"
+              id='input-name'
               onChange={nameForm.handleChange}
               value={nameForm.values.name}
             />
-            <button type="submit">OK</button>
+            <button id='button-name' type="submit">OK</button>
           </form>
         </div> :
-          <p>Name: {nameForm.values.name}</p>
+          <p>Pseudo: <span id=''>{nameForm.values.name}</span></p>
         }
 
         {peerId && <div >
+          <p>🔗 Current room id : <span id='roomId'>{game.gameId}</span></p>
           {
-            isAClientOrHost() ? (
-              <p>🔗 Current room id : {game.gameId}</p>
-            ) : (
-              <div>
-                <p>🔗 Current room id : {peerId}</p>
-                <label>➡️ Join room (empty to host):</label>
-                <input value={joinRoomInput} onChange={e => setJoinRoomInput(e.target.value)}></input>
-                <button disabled={!joinRoomInput} onClick={() => joinRoom(joinRoomInput)}>OK</button>
-              </div>
-            )
+            !isAClientOrHost() &&
+            <div>
+              {/* <p>🔗 Current room id : {peerId}</p> */}
+              <label>➡️ Join room (empty to host):</label>
+              <input id='input-room' value={joinRoomInput} onChange={e => setJoinRoomInput(e.target.value)}></input>
+              <button id='button-room' disabled={!joinRoomInput} onClick={() => joinRoom(joinRoomInput)}>OK</button>
+            </div>
           }
 
           {getMyPlayer() && (
@@ -73,14 +72,14 @@ const App = () => {
                 </div>
               </div>
 
-              {amIHost() && game.gameStatus == GameStatus.WAITING_TO_START && <button onClick={start}>START</button>}
+              {amIHost() && game.gameStatus === GameStatus.WAITING_TO_START && <button onClick={start}>START</button>}
               {
                 game.gameStatus !== GameStatus.WAITING_TO_START && <>
                   <div className='flex-container-center'>
                     <p style={{ borderRadius: 6, padding: 10, background: COLORS.BLUE, border: `4px solid ${COLORS.BLUE}` }}>
                       🔵 Blue team cards : {getRemainingCardsTeam('teamBlue')} ({getTeam('teamBlue').nbTryLeft} try left)
                     </p>
-                    {game.gameStatus == GameStatus.RUNNING ?
+                    {game.gameStatus === GameStatus.RUNNING ?
                       <p style={{ borderRadius: 6, padding: 10, border: `4px solid ${colorToPlay()}` }}>{game.teamPlaying === 'teamBlue' ? 'Blue' : 'Read'} team to play</p>
                       :
                       <p style={{ borderRadius: 6, padding: 10 }}>{game.winner === 'teamBlue' ? 'Blue' : 'Read'} team WINNER</p>
@@ -92,12 +91,12 @@ const App = () => {
                   <div className='flex-container-center'>
                     <ImagesGrid />
                   </div>
-                  {game.teamPlaying == getMyPlayer()?.teamId && !getMyPlayer()?.isGameMaster && game.gameStatus == GameStatus?.RUNNING &&
+                  {game.teamPlaying === getMyPlayer()?.teamId && !getMyPlayer()?.isGameMaster && game.gameStatus === GameStatus?.RUNNING &&
                     <button onClick={() => OkNextTeam()}>OK NEXT TEAM</button>
                   }
                 </>
               }
-              {game.gameStatus == GameStatus.ENDED && amIHost() &&
+              {game.gameStatus === GameStatus.ENDED && amIHost() &&
                 <button onClick={setInWaitingBeforeStart}>RESTART</button>}
             </div>
           )}
