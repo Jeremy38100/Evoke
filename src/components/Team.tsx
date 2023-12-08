@@ -5,6 +5,16 @@ export interface TeamPlayersProps {
     teamId: TeamId
 }
 
+interface PlayerCompProps {
+    name: string
+    id: string
+    teamId: string
+}
+
+export const PlayerComp = ({ name, id, teamId }: PlayerCompProps) => (
+    <p className={`playerName ${teamId}`} id={`player-${id}`}>{name}</p>
+)
+
 export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
     const { game, getMyPlayer, setMyPlayerTeam } = useGameContext()
 
@@ -14,8 +24,8 @@ export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
     const getGameMasters = () => getPlayersInTeam().filter(({ isGameMaster }) => isGameMaster)
     const getPlayers = () => getPlayersInTeam().filter(({ isGameMaster }) => !isGameMaster)
 
-    const canSelectTeam = game.gameStatus == GameStatus.WAITING_TO_START || true
-    const amIInThisTeam = myPlayer.teamId == teamId
+    const canSelectTeam = game.gameStatus === GameStatus.WAITING_TO_START || true
+    const amIInThisTeam = myPlayer.teamId === teamId
     const amIGameMasterInThisTeam = amIInThisTeam && myPlayer.isGameMaster
     const amIPLayerInThisTeam = amIInThisTeam && !myPlayer.isGameMaster
 
@@ -26,14 +36,14 @@ export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
             <p>{teamId}</p>
             <div>
                 <p>👑 Game masters:</p>
-                {getGameMasters().map(({ id, name }) => (<p key={id}>{name}</p>))}
+                {getGameMasters().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId }} />))}
                 {canSelectTeam && !amIGameMasterInThisTeam &&
                     <button onClick={() => joinAsGameMaster(true)}>Join</button>
                 }
             </div>
             <div>
                 <p>🧠 Players:</p>
-                {getPlayers().map(({ id, name }) => (<p key={id}>{name}</p>))}
+                {getPlayers().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId }} />))}
                 {canSelectTeam && !amIPLayerInThisTeam &&
                     <button onClick={() => joinAsGameMaster(false)}>Join</button>
                 }
@@ -48,7 +58,7 @@ export const NoTeamPlayers = () => {
     return (
         <div>
             <p>🧟‍♂️ No Teams</p>
-            {getPlayersWithoutTeam().map(({ id, name }) => (<p key={id}>{name}</p>))}
+            {getPlayersWithoutTeam().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId: 'teamNone' }} />))}
         </div>
     )
 }

@@ -16,8 +16,8 @@ function ImagesGrid() {
         const handleEscapeKey = ({ key }: KeyboardEvent) => {
             const incrementImageArray = (inc: number) => setModalImageIndex(prev => (prev + inc + game.images.length) % game.images.length)
             if (key === 'Escape') setModalImageIndex(-1)
-            else if (key == 'ArrowRight') incrementImageArray(1)
-            else if (key == 'ArrowLeft') incrementImageArray(-1)
+            else if (key === 'ArrowRight') incrementImageArray(1)
+            else if (key === 'ArrowLeft') incrementImageArray(-1)
         }
         window.addEventListener('keydown', handleEscapeKey)
         return () => {
@@ -28,17 +28,17 @@ function ImagesGrid() {
     const getColorImage = ({ imageTeam, flippedByTeam, isHint }: ImageCard) => {
         if (isHint) return COLORS.HINT // Everyone can see the hint
 
-        const isColorVisibleByPlayer = myPlayer.isGameMaster || flippedByTeam || game.gameStatus == GameStatus.ENDED
+        const isColorVisibleByPlayer = myPlayer.isGameMaster || flippedByTeam || game.gameStatus === GameStatus.ENDED
         if (!isColorVisibleByPlayer) return 'transparent'
 
-        if (imageTeam == 'teamBlue') return COLORS.BLUE
-        if (imageTeam == 'teamRed') return COLORS.RED
-        if (imageTeam == 'neutral') return COLORS.NEUTRAL
+        if (imageTeam === 'teamBlue') return COLORS.BLUE
+        if (imageTeam === 'teamRed') return COLORS.RED
+        if (imageTeam === 'neutral') return COLORS.NEUTRAL
         return COLORS.DEAD
     }
 
     const getFilterImage = (image: ImageCard) => {
-        if (game.gameStatus == GameStatus.ENDED) return ''
+        if (game.gameStatus === GameStatus.ENDED) return ''
         if (image.flippedByTeam) return 'grayscale(100%)'
         return ''
     }
@@ -46,8 +46,8 @@ function ImagesGrid() {
     const modalImage = modalImageIndex < 0 ? undefined : game.images[modalImageIndex]
 
     const isButtonVisible = (image: ImageCard) =>
-        game.gameStatus == GameStatus.RUNNING &&
-        image.flippedByTeam == '' &&
+        game.gameStatus === GameStatus.RUNNING &&
+        image.flippedByTeam === '' &&
         !myPlayer.isGameMaster &&
         game.teamPlaying === myPlayer.teamId
 
