@@ -1,11 +1,11 @@
-name: Playwright Tests
+name: Merge master
 on:
   push:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
 jobs:
-  test:
+  merge:
     timeout-minutes: 60
     runs-on: ubuntu-latest
     steps:
@@ -18,7 +18,7 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
     - name: Run Playwright tests
-      run: npm run build
+      run: npm run test
     - uses: actions/upload-artifact@v3
       if: always()
       with:

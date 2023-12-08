@@ -1,5 +1,10 @@
 # Evoke - A Multiplayer Word Guessing Game
 
+![GitHub Workflow Status](https://img.shields.io/github/workflow/status/Jeremy38100/Evoke/Merge)
+![GitHub last commit](https://img.shields.io/github/last-commit/Jeremy38100/Evoke)
+![GitHub top language](https://img.shields.io/github/languages/top/Jeremy38100/Evoke)
+![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/Jeremy38100/Evoke)
+
 Evoke is a fun and interactive game where players try to guess words based on cards related to those words. This game is designed to offer an exciting and entertaining multiplayer experience.
 
 ## Technologies Used
