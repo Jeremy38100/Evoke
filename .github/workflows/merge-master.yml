@@ -2,8 +2,6 @@ name: Merge master
 on:
   push:
     branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
 jobs:
   merge:
     timeout-minutes: 60
