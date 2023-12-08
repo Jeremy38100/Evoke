@@ -77,5 +77,5 @@ Here are some tasks and features that we plan to implement in the future:
   - [ ] Better visibility for flipped card from game master PoV
 - DevOps
   - [ ] Build and Deploy
-  - [ ] Tests
-  - [ ] It should work with `npm` but not tested
+  - [ ] Full e2e test
+  - [x] Playwright test with host/clients
