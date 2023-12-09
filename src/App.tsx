@@ -34,8 +34,12 @@ const App = () => {
   });
 
   const copyGameId = () => {
-    navigator.clipboard.writeText(game.gameId);
-    showToast('Room ID copied to clipboard!')
+    try {
+      navigator.clipboard.writeText(game.gameId);
+      showToast('Room ID copied to clipboard!')
+    } catch (error) {
+      showToast('You can not copy from the button in your browser, please select the text and copy it manually.')
+    }
   }
 
   return (

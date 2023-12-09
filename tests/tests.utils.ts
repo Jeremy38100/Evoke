@@ -44,7 +44,7 @@ async (pages: Page[], doTest: (page: Page) => Promise<any>) => {
 }
 
 export const getPlayerSelector = (playerId: string) => `#player-${playerId}`
-export const getPlayerNameElement = (page: Page, playerId: string) => page.locator(getPlayerSelector(playerId))
+export const getPlayerNameLocator = (page: Page, playerId: string) => page.locator(getPlayerSelector(playerId))
 
 /**
  * Connects the client to the host and checks if two players appear in the players list of both browsers.
@@ -69,8 +69,8 @@ export const connectTwoPages = async () => {
 
   // Expect players exists on both pages
   await expectOnAllPages(pages, async page => {
-    const hostElement: Locator = getPlayerNameElement(page, hostPeerId)
-    const clientElement: Locator = getPlayerNameElement(page, clientPeerId)
+    const hostElement: Locator = getPlayerNameLocator(page, hostPeerId)
+    const clientElement: Locator = getPlayerNameLocator(page, clientPeerId)
 
     expect(await hostElement.textContent()).toBe(hostName)
     expect(hostElement).toHaveCount(1)
