@@ -1,154 +1,81 @@
-import Peer, { DataConnection } from 'peerjs'
-import React, { MutableRefObject, ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-
-export enum MESSAGES {
-    HELLO = 'HELLO',
-    UPDATE_PLAYER = 'UPDATE_PLAYER',
-    UPDATE_GAME = 'UPDATE_GAME',
-    GET_PLAYER = 'GET_PLAYER',
-    CHOSE_IMAGE = 'CHOSE_IMAGE',
-    OK_NEXT_TEAM = 'OK_NEXT_TEAM',
-    HINT_IMAGE = 'HINT_IMAGE',
-}
-
-export interface SocketMessage {
-    message: MESSAGES,
-    data: any
-}
+import React, { ReactNode, createContext, useContext, useRef, useState } from 'react'
+import PeerJsWrapper, { MESSAGES, PeerJsClientMap, SocketMessage } from '../utils/peerjs.utils'
+import { useToast } from './ToastContext'
 
 
-type DataConnectionMap = Record<string, DataConnection>
 export type OnMessageCb = (message: SocketMessage) => void
+export type OnPlayerDisconnectCb = (id: string) => void
+
 
 interface PeerJSContextData {
     initPeerSocket: () => void
     connectToHost: (id: string) => void
-    sendMessageRef: MutableRefObject<(message: MESSAGES, data: any) => void>
+    sendMessage: (message: MESSAGES, data: any) => void
     setOnMessageCb: (cb: OnMessageCb) => void
+    setOnPlayerDisconnectCb: (cb: OnPlayerDisconnectCb) => void
     amIHost: () => boolean
+    setOnDisconnectHostCb: (cb: () => void) => void
     peerId: string,
     isAClientOrHost: () => boolean
-    hostConnectionRef: MutableRefObject<DataConnection | undefined>
+    getPlayerPingMs: (id: string) => number
 }
 
 const PeerJSContext = createContext<PeerJSContextData | undefined>(undefined)
 
 export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
-    const peer = useRef<Peer>()
     const [peerId, setPeerId] = useState('')
+    const [isHostConnected, setIsHostConnected] = useState(false)
 
-    // clientConnectionsMap and hostConnection are related to UI: utilization of useState
-    // Track latest value in stale closure so via reference : see https://github.com/facebook/react/issues/16975#issuecomment-537178823
+    const [clientConnectionsMap, setClientConnectionsMap] = useState<PeerJsClientMap>({})
 
-    const [clientConnectionsMap, setClientConnectionsMap] = useState<DataConnectionMap>({})
-    const clientConnectionsMapRef = useRef(clientConnectionsMap)
-    useEffect(() => {
-        clientConnectionsMapRef.current = clientConnectionsMap
-    }, [clientConnectionsMap])
+    const onMessageCbRef = useRef<OnMessageCb>(() => console.error('onMessageCb is not set'))
+    const setOnMessageCb = (cb: OnMessageCb) => onMessageCbRef.current = cb
 
-    const [hostConnection, setHostConnection] = useState<DataConnection | undefined>(undefined)
-    const hostConnectionRef = useRef(hostConnection)
-    useEffect(() => {
-        hostConnectionRef.current = hostConnection
-    }, [hostConnection])
+    const onPlayerDisconnectRef = useRef<OnPlayerDisconnectCb>(() => console.error('onPlayerDisconnectRef is not set'))
+    const setOnPlayerDisconnectCb = (cb: OnPlayerDisconnectCb) => onPlayerDisconnectRef.current = cb
 
-    const onMessageCb = useRef<OnMessageCb>(() => {
-        console.error('onMessageCb is not set')
-    })
+    const onDisconnectHostRef = useRef(() => console.error('onDisconnectHostRef is not set'))
+    const setOnDisconnectHostCb = (cb: () => void) => onDisconnectHostRef.current = cb
 
-    const setOnMessageCb = (cb: OnMessageCb) => onMessageCb.current = cb
+    const { showToast } = useToast()
 
-    const initPeerSocket = () => {
-        const newPeer = new Peer()
-        newPeer.on('open', id => {
-            peer.current = newPeer
-            setPeerId(id)
+    const getPlayerPingMs = (id: string) => clientConnectionsMap[id]?.pingMs
+
+    const initPeerSocket = async () => {
+        PeerJsWrapper.on('peerDisconnect', () => setPeerId(''))
+        PeerJsWrapper.on('hostConnect', () => {
+            setIsHostConnected(true)
+            showToast('👋 Connected to the host')
         })
-        newPeer.on('close', () => console.log('peer close')) // TODO:
-        newPeer.on('error', (data) => console.error('peer error', data)) // TODO:
-        newPeer.on('disconnected', (d) => console.log('peer disconnected', d)) // TODO:
-        newPeer.on('call', (d) => console.log('peer call', d)) // TODO:
-
-        newPeer.on('connection', clientConn => {
-            const clientId = clientConn.peer
-
-            clientConn.on('close', () => {
-                // Client disconnected
-                console.log('clientConn close', clientId)
-                // TODO: test
-                setClientConnectionsMap(prev => {
-                    const newMap = structuredClone(prev)
-                    delete newMap[clientId]
-                    return newMap
-                })
-            })
-            clientConn.on('error', data => {
-                console.error('clientConn error', data, clientId)
-                // TODO:
-                // Can not send message (eg player shut down the tab)
-            })
-            clientConn.on('data', (data) => {
-                console.log('✉️ from Client', data)
-                onMessageCb.current(data as SocketMessage)
-            })
-            clientConn.on('open', () => {
-                setClientConnectionsMap(prev => ({ ...prev, [clientId]: clientConn }))
-                clientConn.send({ message: MESSAGES.GET_PLAYER })
-            })
+        PeerJsWrapper.on('hostDisconnect', () => {
+            setIsHostConnected(false)
+            onDisconnectHostRef.current()
+            showToast('😢 Disconnected from the host')
         })
+        PeerJsWrapper.on('clientUpdates', clients => setClientConnectionsMap(clients))
+        PeerJsWrapper.on('clientDisconnect', (clientId, clients) => {
+            onPlayerDisconnectRef.current(clientId)
+            setClientConnectionsMap(clients)
+        })
+        PeerJsWrapper.on('message', message => onMessageCbRef.current(message))
+        setPeerId(await PeerJsWrapper.init())
     }
 
-    const connectToHost = (hostId: string) => {
-        if (!peer.current) throw Error('Peer is not defined')
-        if (hostConnectionRef.current) throw Error('hostConnection already set')
-        const hostConn = peer.current.connect(hostId)
-
-        hostConn.on('close', () => {
-            console.log('on close', hostId) // TODO:
-        })
-        hostConn.on('error', data => {
-            console.error('on error', data, hostId) // TODO:
-            // Can not send message (eg host shut down the tab)
-        })
-        hostConn.on('data', (data) => {
-            console.log('📧 from Host', data)
-            onMessageCb.current(data as SocketMessage)
-        })
-        hostConn.on('open', () => {
-            setHostConnection(hostConn)
-        })
-    }
-
-    const sendMessageRef = useRef((message: MESSAGES, data: any) => {
-        const socketMessage: SocketMessage = { message, data }
-
-        if (hostConnectionRef.current) {
-            console.log('📧 to Host ', socketMessage);
-            hostConnectionRef.current.send(socketMessage)
-            return
-        }
-        Object.values(clientConnectionsMapRef.current).forEach(conn => {
-            console.log(`📤 to Client ${conn.peer} `, socketMessage);
-            conn.send(socketMessage)
-        })
-    })
-
-    const amIHost = useCallback(() => hostConnection ? false : true, [hostConnection])
-
-    const isAClientOrHost = () => {
-        return hostConnection ? true : false || Object.keys(clientConnectionsMap).length > 0
-    }
+    const amIHost = () => !isHostConnected
+    const isAClientOrHost = () => isHostConnected || Object.keys(clientConnectionsMap).length > 0
 
     const value: PeerJSContextData = {
         initPeerSocket,
-        connectToHost,
+        connectToHost: hostId => PeerJsWrapper.connectToHost(hostId),
+        sendMessage: (message: MESSAGES, data: any) => PeerJsWrapper.sendMessage(message, data),
         setOnMessageCb,
-        sendMessageRef,
+        setOnPlayerDisconnectCb,
         amIHost,
+        setOnDisconnectHostCb,
         peerId,
         isAClientOrHost,
-        hostConnectionRef
+        getPlayerPingMs,
     }
 
     return (

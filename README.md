@@ -51,6 +51,12 @@ Follow these steps to set up and run the project locally on your machine:
 
 ## Running Tests
 
+Make sure you installed playwright (in addition of `npm install`)
+
+   ```bash
+   npx playwright install --with-deps
+   ```
+
 To run the tests in this project, run
 
    ```bash
@@ -58,7 +64,6 @@ To run the tests in this project, run
    ```
 
 This will build the project, and run a web server on port 4173 then run tests
-
 
 ## To-Do
 
@@ -78,4 +83,4 @@ Here are some tasks and features that we plan to implement in the future:
 - DevOps
   - [ ] Build and Deploy
   - [ ] Full e2e test
-  - [x] Playwright test with host/clients
+  - [X] Playwright test with host/clients

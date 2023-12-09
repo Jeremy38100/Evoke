@@ -1,7 +1,9 @@
 import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Game, ImageCard, Player, TeamId } from '../models/model'
-import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/gameUtils'
-import { MESSAGES, OnMessageCb, usePeerJSContext } from './PeerJSContext'
+import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/game.utils'
+import { MESSAGES } from '../utils/peerjs.utils'
+import { OnMessageCb, usePeerJSContext } from './PeerJSContext'
+import { useToast } from './ToastContext'
 
 interface GameContextData {
     game: Game
@@ -22,7 +24,8 @@ const GameContext = createContext<GameContextData | undefined>(undefined)
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
-    const { peerId, sendMessageRef, setOnMessageCb, connectToHost, amIHost } = usePeerJSContext()
+    const { showToast } = useToast()
+    const { peerId, sendMessage, setOnMessageCb, connectToHost, amIHost, setOnPlayerDisconnectCb, setOnDisconnectHostCb } = usePeerJSContext()
     const [myPlayerName, setMyPlayerName] = useState('')
 
     /*
@@ -47,11 +50,11 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     useEffect(() => {
         if (!amIHost()) return
-        sendMessageRef.current(MESSAGES.UPDATE_GAME, game)
-    }, [game, amIHost, sendMessageRef])
+        sendMessage(MESSAGES.UPDATE_GAME, game)
+    }, [game, amIHost, sendMessage])
 
     const getMyPlayer = useCallback(() => {
-        return Object.values(game.players).find(p => p.id === peerId) // TODO: use Record instead of array
+        return game.players[peerId]
     }, [game, peerId])
 
     const updateGame = useCallback((cb: UpdateGameFromPreviousCb) => {
@@ -60,46 +63,54 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [amIHost])
 
     const start = useCallback(() => {
-        updateGame(newGame => startGame(newGame))
+        updateGame(currentGame => startGame(currentGame))
     }, [updateGame])
 
     const setInWaitingBeforeStart = useCallback(() => {
-        updateGame(newGame => setGameInWaitingBeforeStart(newGame))
+        updateGame(currentGame => setGameInWaitingBeforeStart(currentGame))
     }, [updateGame])
 
-    // TODO: use this
-    // const removePlayer = useCallback((id: string) => {
-    //     if (!amIHost()) return
-    //     updateGame(newGame => removePlayerFromGame(newGame, id))
-    // }, [amIHost, updateGame])
+
 
     const updatePlayer = useCallback((player: Player) => {
-        if (!amIHost()) return sendMessageRef.current(MESSAGES.UPDATE_PLAYER, player)
-        updateGame(newGame => updatePlayerFromGame(newGame, player))
-    }, [amIHost, sendMessageRef, updateGame])
+        if (!amIHost()) return sendMessage(MESSAGES.UPDATE_PLAYER, player)
+        updateGame(currentGame => updatePlayerFromGame(currentGame, player))
+    }, [amIHost, sendMessage, updateGame])
 
     const hintCard = useCallback((image: ImageCard) => {
-        if (!amIHost()) return sendMessageRef.current(MESSAGES.HINT_IMAGE, { image, player: getMyPlayer() })
-        updateGame(newGame => hintCardFromGame(newGame, image.imageId))
-    }, [amIHost, sendMessageRef, updateGame, getMyPlayer])
+        if (!amIHost()) return sendMessage(MESSAGES.HINT_IMAGE, { image, player: getMyPlayer() })
+        updateGame(currentGame => hintCardFromGame(currentGame, image.imageId))
+    }, [amIHost, sendMessage, updateGame, getMyPlayer])
 
     const OkNextTeam = useCallback(() => {
-        if (!amIHost()) return sendMessageRef.current(MESSAGES.OK_NEXT_TEAM, {})
-        updateGame(newGame => okNextTeamFromGame(newGame))
-    }, [amIHost, sendMessageRef, updateGame])
+        if (!amIHost()) return sendMessage(MESSAGES.OK_NEXT_TEAM, {})
+        updateGame(currentGame => okNextTeamFromGame(currentGame))
+    }, [amIHost, sendMessage, updateGame])
 
     const choseCard = useCallback(({ imageId, player }: ChoseImageOpts) => {
-        if (!amIHost()) return sendMessageRef.current(MESSAGES.CHOSE_IMAGE, { imageId, player })
-        updateGame(newGame => choseCardFromGame(newGame, { imageId, player }))
-    }, [amIHost, sendMessageRef, updateGame])
+        if (!amIHost()) return sendMessage(MESSAGES.CHOSE_IMAGE, { imageId, player })
+        updateGame(currentGame => choseCardFromGame(currentGame, { imageId, player }))
+    }, [amIHost, sendMessage, updateGame])
+
+    const deletePlayer = useCallback((id: string) => {
+        const player = gameRef.current.players[id]
+        if (!player) return
+        showToast(`💔 ${player.name} left`)
+
+        updateGame(currentGame => {
+            const newGame = structuredClone(currentGame)
+            delete newGame.players[id]
+            return newGame
+        })
+    }, [showToast, updateGame])
 
     const setMyPlayerTeam = (teamId: TeamId, isGameMaster: boolean) => {
         const myPlayer = getMyPlayer()
         if (!myPlayer) throw new Error('I do not have my player in game')
         myPlayer.teamId = teamId
         myPlayer.isGameMaster = isGameMaster
-        if (!amIHost()) return sendMessageRef.current(MESSAGES.UPDATE_PLAYER, myPlayer)
-        updateGame(newGame => updatePlayerFromGame(newGame, myPlayer))
+        if (!amIHost()) return sendMessage(MESSAGES.UPDATE_PLAYER, myPlayer)
+        updateGame(currentGame => updatePlayerFromGame(currentGame, myPlayer))
     }
 
     const joinRoom = (id: string) => {
@@ -108,7 +119,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     useEffect(() => {
         if (!peerId || !myPlayerName) return
-        const myPlayer = Object.values(gameRef.current.players).find(p => p.id === peerId) ?? {
+        const myPlayer = gameRef.current.players[peerId] ?? {
             teamId: '',
             isGameMaster: false,
             id: peerId,
@@ -140,12 +151,30 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setOnMessageCb(onMessageCb)
     }, [setGame, updatePlayer, hintCard, choseCard, OkNextTeam, setOnMessageCb, peerId, myPlayerName])
 
+    useEffect(() => {
+        setOnPlayerDisconnectCb(deletePlayer)
+    }, [deletePlayer, setOnPlayerDisconnectCb])
+
+    useEffect(() => {
+        setOnDisconnectHostCb(() => {
+            const newGame = getDefaultGameData()
+            newGame.gameId = peerId
+            newGame.players[peerId] = {
+                teamId: '',
+                isGameMaster: false,
+                id: peerId,
+                name: myPlayerName,
+            }
+            setGame(newGame)
+        })
+    }, [myPlayerName, peerId, setOnDisconnectHostCb])
+
     // ------- DEBUG -------
     useEffect(() => { console.log('🔄 amIHost') }, [amIHost])
-    useEffect(() => { console.log('🔄 sendMessageRef') }, [sendMessageRef])
-    useEffect(() => { console.log('🔄 game') }, [game])
+    useEffect(() => { console.log('🔄 sendMessage') }, [sendMessage])
+    useEffect(() => { console.log('🔄 game', game) }, [game])
     useEffect(() => { console.log('🔄 myPlayerName') }, [myPlayerName])
-    useEffect(() => { console.log('🔄 peerId') }, [peerId])
+    useEffect(() => { console.log('🔄 peerId', peerId) }, [peerId])
     // ---------------------
 
     const value: GameContextData = {
