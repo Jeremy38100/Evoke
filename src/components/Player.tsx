@@ -16,8 +16,8 @@ function Player({ name, id, teamId }: PlayerCompProps) {
     const pingMs = getPlayerPingMs(id) // only the host can get the ping of other players
 
     return (
-        <p className={`playerName ${teamId}`} id={`player-${id}`}>
-            {isHost && '🏠'} {name} {pingMs && <span style={{ opacity: 0.2 }}>{pingMs}ms</span>}
+        <p className={`playerName ${teamId}`} >
+            {isHost && '🏠'} <span className={`${teamId}`} id={`player-${id}`}>{name}</span> {pingMs && <span style={{ opacity: 0.2 }}>{pingMs}ms</span>}
         </p>
     )
 }

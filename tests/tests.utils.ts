@@ -1,4 +1,4 @@
-import { test, expect, chromium, Page, BrowserContext } from '@playwright/test';
+import { BrowserContext, Locator, Page, chromium, expect } from "@playwright/test";
 
 interface PageClientParams {
   context: BrowserContext,
@@ -16,7 +16,7 @@ interface PageClient {
  * @param {PageClientParams} params - The parameters for connecting the new page.
  * @returns {Promise<PageClient>} A promise that resolves to the connected page client.
  */
-const connectNewPage = async ({ context, name, hostPeerId }: PageClientParams): Promise<PageClient> => {
+export const connectNewPage = async ({ context, name, hostPeerId }: PageClientParams): Promise<PageClient> => {
   const page = await context.newPage();
   await page.goto('http://localhost:4173/');
   await page.locator('#input-name').fill(name);
@@ -43,17 +43,21 @@ async (pages: Page[], doTest: (page: Page) => Promise<any>) => {
   for (const page of pages) await doTest(page)
 }
 
-test('test', async () => {
+export const getPlayerSelector = (playerId: string) => `#player-${playerId}`
+export const getPlayerNameElement = (page: Page, playerId: string) => page.locator(getPlayerSelector(playerId))
+
+/**
+ * Connects the client to the host and checks if two players appear in the players list of both browsers.
+ * @returns An object containing the host page, client page, host name, client name, host peer ID, and client peer ID.
+ */
+export const connectTwoPages = async () => {
   const browser = await chromium.launch();
   const context = await browser.newContext();
 
   const hostName = 'Host'
   const { peerId: hostPeerId, page: pageHost } = await connectNewPage({ context, name: hostName, hostPeerId: '' });
 
-  // Expect connection with PeerJS server OK (has a peerId )
   expect(hostPeerId.length > 0).toBeTruthy();
-  // Expect host is in the game without team
-  expect(await pageHost.locator(`#player-${hostPeerId}.teamNone`).textContent()).toBe(hostName)
 
   const clientName = 'Client'
   expect(clientName).not.toBe(hostName)
@@ -65,9 +69,17 @@ test('test', async () => {
 
   // Expect players exists on both pages
   await expectOnAllPages(pages, async page => {
-    expect(await page.locator(`#player-${hostPeerId}.teamNone`).textContent()).toBe(hostName)
-    expect(await page.locator(`#player-${clientPeerId}.teamNone`).textContent()).toBe(clientName)
+    const hostElement: Locator = getPlayerNameElement(page, hostPeerId)
+    const clientElement: Locator = getPlayerNameElement(page, clientPeerId)
+
+    expect(await hostElement.textContent()).toBe(hostName)
+    expect(hostElement).toHaveCount(1)
+    expect(hostElement).toHaveClass('teamNone')
+
+    expect(await clientElement.textContent()).toBe(clientName)
+    expect(clientElement).toHaveCount(1)
+    expect(clientElement).toHaveClass('teamNone')
   })
 
-  console.log('TESTS DONE');
-});
+  return { pageHost, pageClient, hostName, clientName, hostPeerId, clientPeerId }
+}

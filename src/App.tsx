@@ -1,13 +1,11 @@
 import { useFormik } from 'formik';
-import { useEffect } from 'react';
 import ImagesGrid from './components/ImagesGrid';
 import { NoTeamPlayers, TeamPlayers } from './components/Team';
 import { useGameContext } from './context/GameContext';
 import { usePeerJSContext } from './context/PeerJSContext';
+import { useToast } from './context/ToastContext';
 import { GameStatus, Team, TeamId } from './models/model';
 import { COLORS } from './utils/images.utils';
-import { randomString } from './utils/utils';
-import { useToast } from './context/ToastContext';
 
 const App = () => {
 
@@ -34,12 +32,6 @@ const App = () => {
       joinRoom(roomId)
     }
   });
-
-  // DEV - Set random name
-  // useEffect(() => {
-  //   nameForm.setFieldValue('name', randomString())
-  //   nameForm.handleSubmit()
-  // }, [])
 
   const copyGameId = () => {
     navigator.clipboard.writeText(game.gameId);
@@ -78,11 +70,6 @@ const App = () => {
               />
               <button id='button-room' type="submit">OK</button>
             </form>
-            // <div>
-            //   <label>➡️ Join room (empty to host):</label>
-            //   <input id='input-room' value={joinRoomInput} onChange={e => setJoinRoomInput(e.target.value)}></input>
-            //   <button id='button-room' disabled={!joinRoomInput} onClick={() => joinRoom(joinRoomInput)}>OK</button>
-            // </div>
           }
 
           {getMyPlayer() && (

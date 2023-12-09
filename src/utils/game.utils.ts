@@ -72,11 +72,8 @@ export const updatePlayerFromGame = (game: Game, player: Player): Game => {
 }
 
 export const hintCardFromGame = (game: Game, imageId: string): Game => {
-  const imageFromGame = game.images.find(i => i.imageId === imageId)
-  if (!imageFromGame)
-    console.error('can not find image', imageId)
-  else
-    imageFromGame.isHint = !imageFromGame.isHint
+  const imageFromGame = getImage(game, imageId)
+  imageFromGame.isHint = !imageFromGame.isHint
   return game
 }
 
@@ -98,7 +95,7 @@ export const choseCardFromGame = (game: Game, { imageId, player }: ChoseImageOpt
   const playerTeam = game.teams.find(t => t.teamId === playerTeamId)
   if (!playerTeam) throw Error('Can not playerTeam ' + playerTeamId)
 
-  const imageFromGame = game.images.find(i => i.imageId === imageId) // TODO: use Record instead of Array
+  const imageFromGame = getImage(game, imageId)
   if (!imageFromGame) throw Error('Can not find image: ' + imageId)
 
   imageFromGame.flippedByTeam = playerTeamId
@@ -116,4 +113,10 @@ export const choseCardFromGame = (game: Game, { imageId, player }: ChoseImageOpt
   if (!getRemainingNbImagesForTeam(game, playerTeamId)) return endGame(game, playerTeamId)
   if (!getRemainingNbImagesForTeam(game, otherTeamId)) return endGame(game, otherTeamId)
   return game
+}
+
+export const getImage = (game: Game, imageId: string) => {
+  const image = game.images.find(i => i.imageId === imageId)
+  if (!image) throw Error('Can not find image: ' + imageId)
+  return image
 }
