@@ -1,19 +1,10 @@
 import { useGameContext } from "../context/GameContext"
 import { GameStatus, TeamId } from "../models/model"
+import Player from "./Player"
 
 export interface TeamPlayersProps {
     teamId: TeamId
 }
-
-interface PlayerCompProps {
-    name: string
-    id: string
-    teamId: string
-}
-
-export const PlayerComp = ({ name, id, teamId }: PlayerCompProps) => (
-    <p className={`playerName ${teamId}`} id={`player-${id}`}>{name}</p>
-)
 
 export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
     const { game, getMyPlayer, setMyPlayerTeam } = useGameContext()
@@ -36,14 +27,14 @@ export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
             <p>{teamId}</p>
             <div>
                 <p>👑 Game masters:</p>
-                {getGameMasters().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId }} />))}
+                {getGameMasters().map(({ id, name }) => (<Player key={id} {...{ id, name, teamId }} />))}
                 {canSelectTeam && !amIGameMasterInThisTeam &&
                     <button onClick={() => joinAsGameMaster(true)}>Join</button>
                 }
             </div>
             <div>
                 <p>🧠 Players:</p>
-                {getPlayers().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId }} />))}
+                {getPlayers().map(({ id, name }) => (<Player key={id} {...{ id, name, teamId }} />))}
                 {canSelectTeam && !amIPLayerInThisTeam &&
                     <button onClick={() => joinAsGameMaster(false)}>Join</button>
                 }
@@ -58,7 +49,7 @@ export const NoTeamPlayers = () => {
     return (
         <div>
             <p>🧟‍♂️ No Teams</p>
-            {getPlayersWithoutTeam().map(({ id, name }) => (<PlayerComp key={id} {...{ id, name, teamId: 'teamNone' }} />))}
+            {getPlayersWithoutTeam().map(({ id, name }) => (<Player key={id} {...{ id, name, teamId: 'teamNone' }} />))}
         </div>
     )
 }

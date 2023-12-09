@@ -1,14 +1,17 @@
 import Peer, { DataConnection } from 'peerjs'
 import React, { MutableRefObject, ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { useToast } from './ToastContext'
 
 export enum MESSAGES {
-    HELLO = 'HELLO',
     UPDATE_PLAYER = 'UPDATE_PLAYER',
     UPDATE_GAME = 'UPDATE_GAME',
     GET_PLAYER = 'GET_PLAYER',
     CHOSE_IMAGE = 'CHOSE_IMAGE',
     OK_NEXT_TEAM = 'OK_NEXT_TEAM',
     HINT_IMAGE = 'HINT_IMAGE',
+    PLAYER_DISCONNECTED = 'PLAYER_DISCONNECTED',
+    PING = 'PING',
+    PONG = 'PONG',
 }
 
 export interface SocketMessage {
@@ -16,19 +19,30 @@ export interface SocketMessage {
     data: any
 }
 
+interface PeerJsClient {
+    conn: DataConnection,
+    pingMs: number
+    lastSendPingTimestamp: number
+}
 
-type DataConnectionMap = Record<string, DataConnection>
+type PeerJsClientMap = Record<string, PeerJsClient>
 export type OnMessageCb = (message: SocketMessage) => void
+export type OnPlayerDisconnectCb = (id: string) => void
+
+const PING_MESSAGE_INTERVAL_MS = 3000
+const PONG_MESSAGE_TIMEOUT = 3000
 
 interface PeerJSContextData {
     initPeerSocket: () => void
     connectToHost: (id: string) => void
     sendMessageRef: MutableRefObject<(message: MESSAGES, data: any) => void>
     setOnMessageCb: (cb: OnMessageCb) => void
+    setOnPlayerDisconnectCb: (cb: OnPlayerDisconnectCb) => void
     amIHost: () => boolean
     peerId: string,
     isAClientOrHost: () => boolean
-    hostConnectionRef: MutableRefObject<DataConnection | undefined>
+    hostConnectionRef: MutableRefObject<DataConnection | undefined>,
+    getPlayerPingMs: (id: string) => number
 }
 
 const PeerJSContext = createContext<PeerJSContextData | undefined>(undefined)
@@ -41,7 +55,7 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
     // clientConnectionsMap and hostConnection are related to UI: utilization of useState
     // Track latest value in stale closure so via reference : see https://github.com/facebook/react/issues/16975#issuecomment-537178823
 
-    const [clientConnectionsMap, setClientConnectionsMap] = useState<DataConnectionMap>({})
+    const [clientConnectionsMap, setClientConnectionsMap] = useState<PeerJsClientMap>({})
     const clientConnectionsMapRef = useRef(clientConnectionsMap)
     useEffect(() => {
         clientConnectionsMapRef.current = clientConnectionsMap
@@ -53,11 +67,100 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         hostConnectionRef.current = hostConnection
     }, [hostConnection])
 
-    const onMessageCb = useRef<OnMessageCb>(() => {
-        console.error('onMessageCb is not set')
-    })
+    const onMessageCbRef = useRef<OnMessageCb>(() => console.error('onMessageCb is not set'))
+    const onPlayerDisconnectRef = useRef<OnPlayerDisconnectCb>(() => console.error('onPlayerDisconnectRef is not set'))
 
-    const setOnMessageCb = (cb: OnMessageCb) => onMessageCb.current = cb
+    const { showToast } = useToast()
+
+    const setOnMessageCb = (cb: OnMessageCb) => onMessageCbRef.current = cb
+    const setOnPlayerDisconnectCb = (cb: OnPlayerDisconnectCb) => onPlayerDisconnectRef.current = cb
+
+    const pingPongTimeoutRef = useRef<Record<string, number>>({})
+
+    const onClientDisconnection = useCallback((clientId: string) => {
+        setClientConnectionsMap(prev => {
+            const newMap = { ...prev }
+            delete newMap[clientId]
+            return newMap
+        })
+        onPlayerDisconnectRef.current(clientId)
+
+        const clientPingPongTimeout = pingPongTimeoutRef.current[clientId]
+        if (!clientPingPongTimeout) clearTimeout(clientPingPongTimeout)
+        delete pingPongTimeoutRef.current[clientId]
+        console.log(pingPongTimeoutRef.current);
+    }, [])
+
+    const getPlayerPingMs = (id: string) => clientConnectionsMap[id]?.pingMs
+
+    const onHostDisconnection = useCallback(() => {
+        setHostConnection(undefined)
+        showToast('Disconnected to host')
+    }, [showToast])
+
+    const getClientPeerJsConnection = useCallback((clientId: string) => clientConnectionsMapRef.current[clientId], [])
+
+    const setPingToClient = (clientId: string, ping: number) => {
+        setClientConnectionsMap(prev => {
+            const newMap = { ...prev }
+            if (newMap[clientId]) newMap[clientId].pingMs = ping
+            return newMap
+        })
+    }
+
+    const setLastSendPingTimestampToClient = (clientId: string) => {
+        setClientConnectionsMap(prev => {
+            const newMap = { ...prev }
+            if (newMap[clientId]) newMap[clientId].lastSendPingTimestamp = Date.now()
+            return newMap
+        })
+    }
+
+
+    const sendPing = useCallback((clientId: string, clientConnection?: DataConnection) => {
+        const clientPeerJsConnection = getClientPeerJsConnection(clientId)
+        const connection = clientPeerJsConnection?.conn ?? clientConnection // On the first PING, clientPeerJsConnection is not defined
+        if (!connection) {
+            console.error('No connection to send ping');
+            return
+        }
+        // Expect a PONG message in less than 5 seconds
+        // If not, client is disconnected
+        pingPongTimeoutRef.current[clientId] = setTimeout(() => onClientDisconnection(clientId), PONG_MESSAGE_TIMEOUT)
+        console.log('🏓 PING');
+        setLastSendPingTimestampToClient(clientId)
+        connection.send({ message: MESSAGES.PING, data: {} })
+    }, [onClientDisconnection, getClientPeerJsConnection])
+
+
+    const onData = useCallback(async (data: SocketMessage, fromId: string) => {
+        clearTimeout(pingPongTimeoutRef.current[fromId])
+        if (data.message === MESSAGES.PONG) {
+            // Received by the host
+            const clientPeerJsConnection = getClientPeerJsConnection(fromId)
+            if (!clientPeerJsConnection) return
+            if (clientPeerJsConnection.lastSendPingTimestamp) {
+                setPingToClient(fromId, Date.now() - clientPeerJsConnection.lastSendPingTimestamp)
+            }
+            setTimeout(() => sendPing(fromId), PING_MESSAGE_INTERVAL_MS)
+            return
+        }
+
+        if (data.message === MESSAGES.PING) {
+            // Received by the client
+            // Expect another PING message in PING_MESSAGE_INTERVAL_MS
+            // If not, host is disconnected
+            pingPongTimeoutRef.current[fromId] = setTimeout(() => onHostDisconnection(), 2 * PING_MESSAGE_INTERVAL_MS)
+            if (!hostConnectionRef.current) {
+                console.error('No hostConnection to send pong');
+                return
+            }
+            console.log('🏓 PONG');
+            hostConnectionRef.current.send({ message: MESSAGES.PONG, data: {} })
+            return
+        }
+        onMessageCbRef.current(data)
+    }, [sendPing, onHostDisconnection, getClientPeerJsConnection])
 
     const initPeerSocket = () => {
         const newPeer = new Peer()
@@ -76,25 +179,22 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
             clientConn.on('close', () => {
                 // Client disconnected
                 console.log('clientConn close', clientId)
-                // TODO: test
-                setClientConnectionsMap(prev => {
-                    const newMap = structuredClone(prev)
-                    delete newMap[clientId]
-                    return newMap
-                })
+                onClientDisconnection(clientId)
             })
             clientConn.on('error', data => {
+                if (!clientConnectionsMap[clientId]) return // Disconnected, expected to fail
                 console.error('clientConn error', data, clientId)
                 // TODO:
                 // Can not send message (eg player shut down the tab)
             })
-            clientConn.on('data', (data) => {
-                console.log('✉️ from Client', data)
-                onMessageCb.current(data as SocketMessage)
+            clientConn.on('data', async (data) => {
+                console.log('⬇️ from Client', data)
+                onData(data as SocketMessage, clientId)
             })
             clientConn.on('open', () => {
-                setClientConnectionsMap(prev => ({ ...prev, [clientId]: clientConn }))
+                setClientConnectionsMap(prev => ({ ...prev, [clientId]: { conn: clientConn, pingMs: 0, lastSendPingTimestamp: 0 } }))
                 clientConn.send({ message: MESSAGES.GET_PLAYER })
+                sendPing(clientId, clientConn)
             })
         })
     }
@@ -105,15 +205,17 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         const hostConn = peer.current.connect(hostId)
 
         hostConn.on('close', () => {
-            console.log('on close', hostId) // TODO:
+            // Lost connection with host
+            console.log('hostConn close', hostId);
+            onHostDisconnection()
         })
         hostConn.on('error', data => {
             console.error('on error', data, hostId) // TODO:
             // Can not send message (eg host shut down the tab)
         })
         hostConn.on('data', (data) => {
-            console.log('📧 from Host', data)
-            onMessageCb.current(data as SocketMessage)
+            console.log('⬇️ from Host', data)
+            onData(data as SocketMessage, hostId)
         })
         hostConn.on('open', () => {
             setHostConnection(hostConn)
@@ -124,12 +226,12 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         const socketMessage: SocketMessage = { message, data }
 
         if (hostConnectionRef.current) {
-            console.log('📧 to Host ', socketMessage);
+            console.log('⬆️ to Host ', socketMessage);
             hostConnectionRef.current.send(socketMessage)
             return
         }
-        Object.values(clientConnectionsMapRef.current).forEach(conn => {
-            console.log(`📤 to Client ${conn.peer} `, socketMessage);
+        Object.values(clientConnectionsMapRef.current).forEach(({ conn }) => {
+            console.log(`⬆️ to Client ${conn.peer} `, socketMessage);
             conn.send(socketMessage)
         })
     })
@@ -144,11 +246,13 @@ export const PeerJSProvider: React.FC<{ children: ReactNode }> = ({ children }) 
         initPeerSocket,
         connectToHost,
         setOnMessageCb,
+        setOnPlayerDisconnectCb,
         sendMessageRef,
         amIHost,
         peerId,
         isAClientOrHost,
-        hostConnectionRef
+        hostConnectionRef,
+        getPlayerPingMs
     }
 
     return (

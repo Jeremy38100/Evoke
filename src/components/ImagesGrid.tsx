@@ -1,7 +1,7 @@
 import { CSSProperties, useEffect, useState } from 'react'
 import { useGameContext } from '../context/GameContext'
 import { GameStatus, ImageCard } from '../models/model'
-import { COLORS } from '../utils/imagesUtils'
+import { COLORS } from '../utils/images.utils'
 
 function ImagesGrid() {
 

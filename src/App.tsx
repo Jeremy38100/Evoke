@@ -1,18 +1,19 @@
 import { useFormik } from 'formik';
-import { useState } from 'react';
+import { useEffect } from 'react';
 import ImagesGrid from './components/ImagesGrid';
 import { NoTeamPlayers, TeamPlayers } from './components/Team';
 import { useGameContext } from './context/GameContext';
 import { usePeerJSContext } from './context/PeerJSContext';
 import { GameStatus, Team, TeamId } from './models/model';
-import { COLORS } from './utils/imagesUtils';
+import { COLORS } from './utils/images.utils';
+import { randomString } from './utils/utils';
+import { useToast } from './context/ToastContext';
 
 const App = () => {
 
+  const { showToast } = useToast()
   const { peerId, initPeerSocket, isAClientOrHost, amIHost } = usePeerJSContext()
   const { game, getMyPlayer, OkNextTeam, start, setInWaitingBeforeStart, joinRoom, setMyPlayerName } = useGameContext()
-
-  const [joinRoomInput, setJoinRoomInput] = useState('')
 
   const colorToPlay = () => game.teamPlaying === 'teamBlue' ? COLORS.BLUE : COLORS.RED
   const getTeam = (teamId: TeamId): Team => game.teams.find(t => t.teamId === teamId)!
@@ -26,6 +27,24 @@ const App = () => {
       initPeerSocket()
     }
   });
+
+  const roomIdForm = useFormik({
+    initialValues: { roomId: '' },
+    onSubmit: ({ roomId }) => {
+      joinRoom(roomId)
+    }
+  });
+
+  // DEV - Set random name
+  // useEffect(() => {
+  //   nameForm.setFieldValue('name', randomString())
+  //   nameForm.handleSubmit()
+  // }, [])
+
+  const copyGameId = () => {
+    navigator.clipboard.writeText(game.gameId);
+    showToast('Room ID copied to clipboard!')
+  }
 
   return (
     <>
@@ -45,15 +64,25 @@ const App = () => {
         }
 
         {peerId && <div >
-          <p>🔗 Current room id : <span id='roomId'>{game.gameId}</span></p>
+          <p>🎲 Current room id : <span id='roomId'>{game.gameId}</span>
+            <button onClick={copyGameId}>🔗</button>
+          </p>
           {
             !isAClientOrHost() &&
-            <div>
-              {/* <p>🔗 Current room id : {peerId}</p> */}
+            <form onSubmit={roomIdForm.handleSubmit}>
               <label>➡️ Join room (empty to host):</label>
-              <input id='input-room' value={joinRoomInput} onChange={e => setJoinRoomInput(e.target.value)}></input>
-              <button id='button-room' disabled={!joinRoomInput} onClick={() => joinRoom(joinRoomInput)}>OK</button>
-            </div>
+              <input name="roomId"
+                id='input-room'
+                onChange={roomIdForm.handleChange}
+                value={roomIdForm.values.roomId}
+              />
+              <button id='button-room' type="submit">OK</button>
+            </form>
+            // <div>
+            //   <label>➡️ Join room (empty to host):</label>
+            //   <input id='input-room' value={joinRoomInput} onChange={e => setJoinRoomInput(e.target.value)}></input>
+            //   <button id='button-room' disabled={!joinRoomInput} onClick={() => joinRoom(joinRoomInput)}>OK</button>
+            // </div>
           }
 
           {getMyPlayer() && (

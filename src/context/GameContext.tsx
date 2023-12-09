@@ -1,7 +1,8 @@
 import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { Game, ImageCard, Player, TeamId } from '../models/model'
-import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/gameUtils'
+import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/game.utils'
 import { MESSAGES, OnMessageCb, usePeerJSContext } from './PeerJSContext'
+import { useToast } from './ToastContext'
 
 interface GameContextData {
     game: Game
@@ -22,7 +23,8 @@ const GameContext = createContext<GameContextData | undefined>(undefined)
 
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
-    const { peerId, sendMessageRef, setOnMessageCb, connectToHost, amIHost } = usePeerJSContext()
+    const { showToast } = useToast()
+    const { peerId, sendMessageRef, setOnMessageCb, connectToHost, amIHost, setOnPlayerDisconnectCb } = usePeerJSContext()
     const [myPlayerName, setMyPlayerName] = useState('')
 
     /*
@@ -60,38 +62,46 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, [amIHost])
 
     const start = useCallback(() => {
-        updateGame(newGame => startGame(newGame))
+        updateGame(currentGame => startGame(currentGame))
     }, [updateGame])
 
     const setInWaitingBeforeStart = useCallback(() => {
-        updateGame(newGame => setGameInWaitingBeforeStart(newGame))
+        updateGame(currentGame => setGameInWaitingBeforeStart(currentGame))
     }, [updateGame])
 
-    // TODO: use this
-    // const removePlayer = useCallback((id: string) => {
-    //     if (!amIHost()) return
-    //     updateGame(newGame => removePlayerFromGame(newGame, id))
-    // }, [amIHost, updateGame])
+
 
     const updatePlayer = useCallback((player: Player) => {
         if (!amIHost()) return sendMessageRef.current(MESSAGES.UPDATE_PLAYER, player)
-        updateGame(newGame => updatePlayerFromGame(newGame, player))
+        updateGame(currentGame => updatePlayerFromGame(currentGame, player))
     }, [amIHost, sendMessageRef, updateGame])
 
     const hintCard = useCallback((image: ImageCard) => {
         if (!amIHost()) return sendMessageRef.current(MESSAGES.HINT_IMAGE, { image, player: getMyPlayer() })
-        updateGame(newGame => hintCardFromGame(newGame, image.imageId))
+        updateGame(currentGame => hintCardFromGame(currentGame, image.imageId))
     }, [amIHost, sendMessageRef, updateGame, getMyPlayer])
 
     const OkNextTeam = useCallback(() => {
         if (!amIHost()) return sendMessageRef.current(MESSAGES.OK_NEXT_TEAM, {})
-        updateGame(newGame => okNextTeamFromGame(newGame))
+        updateGame(currentGame => okNextTeamFromGame(currentGame))
     }, [amIHost, sendMessageRef, updateGame])
 
     const choseCard = useCallback(({ imageId, player }: ChoseImageOpts) => {
         if (!amIHost()) return sendMessageRef.current(MESSAGES.CHOSE_IMAGE, { imageId, player })
-        updateGame(newGame => choseCardFromGame(newGame, { imageId, player }))
+        updateGame(currentGame => choseCardFromGame(currentGame, { imageId, player }))
     }, [amIHost, sendMessageRef, updateGame])
+
+    const deletePlayer = useCallback((id: string) => {
+        const player = gameRef.current.players[id]
+        if (!player) return
+        showToast(`💔 ${player.name} left`)
+
+        updateGame(currentGame => {
+            const newGame = structuredClone(currentGame)
+            delete newGame.players[id]
+            return newGame
+        })
+    }, [showToast, updateGame])
 
     const setMyPlayerTeam = (teamId: TeamId, isGameMaster: boolean) => {
         const myPlayer = getMyPlayer()
@@ -99,7 +109,7 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         myPlayer.teamId = teamId
         myPlayer.isGameMaster = isGameMaster
         if (!amIHost()) return sendMessageRef.current(MESSAGES.UPDATE_PLAYER, myPlayer)
-        updateGame(newGame => updatePlayerFromGame(newGame, myPlayer))
+        updateGame(currentGame => updatePlayerFromGame(currentGame, myPlayer))
     }
 
     const joinRoom = (id: string) => {
@@ -139,6 +149,10 @@ export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
         setOnMessageCb(onMessageCb)
     }, [setGame, updatePlayer, hintCard, choseCard, OkNextTeam, setOnMessageCb, peerId, myPlayerName])
+
+    useEffect(() => {
+        setOnPlayerDisconnectCb(deletePlayer)
+    }, [deletePlayer, setOnPlayerDisconnectCb])
 
     // ------- DEBUG -------
     useEffect(() => { console.log('🔄 amIHost') }, [amIHost])

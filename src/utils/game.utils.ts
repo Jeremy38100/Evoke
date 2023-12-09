@@ -1,5 +1,5 @@
 import { Game, GameStatus, Player, TeamId } from "../models/model"
-import { getImages } from "./imagesUtils"
+import { getImages } from "./images.utils"
 
 /**
  * Returns the default game data.
