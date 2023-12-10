@@ -1,5 +1,5 @@
 import { useGameContext } from "../context/GameContext"
-import { GameStatus, TeamId } from "../models/model"
+import { TeamId } from "../models/model"
 import Player from "./Player"
 
 export interface TeamPlayersProps {
@@ -7,16 +7,14 @@ export interface TeamPlayersProps {
 }
 
 export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
-    const { game, getMyPlayer, setMyPlayerTeam } = useGameContext()
+    const { game: { players, gameStatus }, myPlayer, setMyPlayerTeam } = useGameContext()
 
-    const myPlayer = getMyPlayer()!
-
-    const getPlayersInTeam = () => Object.values(game.players).filter(p => p.teamId === teamId)
+    const getPlayersInTeam = () => Object.values(players).filter(p => p.teamId === teamId)
     const getGameMasters = () => getPlayersInTeam().filter(({ isGameMaster }) => isGameMaster)
     const getPlayers = () => getPlayersInTeam().filter(({ isGameMaster }) => !isGameMaster)
 
-    const canSelectTeam = game.gameStatus === GameStatus.WAITING_TO_START || true
-    const amIInThisTeam = myPlayer.teamId === teamId
+    const canSelectTeam = gameStatus === 'waiting' || true
+    const amIInThisTeam = myPlayer?.teamId === teamId
     const amIGameMasterInThisTeam = amIInThisTeam && myPlayer.isGameMaster
     const amIPLayerInThisTeam = amIInThisTeam && !myPlayer.isGameMaster
 
@@ -44,8 +42,8 @@ export const TeamPlayers = ({ teamId }: TeamPlayersProps) => {
 }
 
 export const NoTeamPlayers = () => {
-    const { game } = useGameContext()
-    const getPlayersWithoutTeam = () => Object.values(game.players).filter(({ teamId }) => !teamId)
+    const { game: { players } } = useGameContext()
+    const getPlayersWithoutTeam = () => Object.values(players).filter(({ teamId }) => !teamId)
     return (
         <div>
             <p>🧟‍♂️ No Teams</p>

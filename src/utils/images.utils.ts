@@ -38,13 +38,14 @@ export interface GetImagesOpts {
  * @param {GetImagesOpts} options - An object containing options for generating the image cards.
  * @returns {ImageCard[]} An array of ImageCard objects representing the game cards.
  */
-export const getImages = ({ nbBlue, nbRed, nbNeutral, nbDead }: GetImagesOpts): ImageCard[] => {
+export const getImages = ({ nbBlue, nbRed, nbNeutral, nbDead }: GetImagesOpts): Record<string, ImageCard> => {
 
     const defaultImageCard = (imageId: string): ImageCard => ({
         imageId,
         flippedByTeam: '',
         imageTeam: 'dead',
         isHint: false,
+        index: 0,
     })
     const nbCards = nbBlue + nbRed + nbNeutral + nbDead
     const imagesArr: ImageCard[] = shuffleArray(images)
@@ -63,5 +64,7 @@ export const getImages = ({ nbBlue, nbRed, nbNeutral, nbDead }: GetImagesOpts): 
         imagesArr[index].imageTeam = 'neutral'
         index++
     }
-    return shuffleArray(imagesArr)
+    const imagesRecord: Record<string, ImageCard> = {}
+    shuffleArray(imagesArr).forEach((image, index) => imagesRecord[image.imageId] = { ...image, index })
+    return imagesRecord
 }

@@ -1,20 +1,23 @@
-import { CSSProperties, useEffect, useState } from 'react'
+import { CSSProperties, useEffect, useMemo, useState } from 'react'
 import { useGameContext } from '../context/GameContext'
-import { GameStatus, ImageCard } from '../models/model'
 import { COLORS } from '../utils/images.utils'
+import { getImage } from '../utils/game.utils'
 
 function ImagesGrid() {
 
-    const { game, getMyPlayer, hintCard, choseCard } = useGameContext()
-
-    const myPlayer = getMyPlayer()!
+    const {
+        game: { images, gameStatus, teamPlaying },
+        myPlayer,
+        hintCard, choseCard
+    } = useGameContext()
 
     // Use -1 to disable modal, imageIndex in gameData.images otherwise
     const [modalImageIndex, setModalImageIndex] = useState(-1)
 
     useEffect(() => {
         const handleEscapeKey = ({ key }: KeyboardEvent) => {
-            const incrementImageArray = (inc: number) => setModalImageIndex(prev => (prev + inc + game.images.length) % game.images.length)
+            const nbImages = Object.values(images).length
+            const incrementImageArray = (inc: number) => setModalImageIndex(prev => (prev + inc + nbImages) % nbImages)
             if (key === 'Escape') setModalImageIndex(-1)
             else if (key === 'ArrowRight') incrementImageArray(1)
             else if (key === 'ArrowLeft') incrementImageArray(-1)
@@ -23,12 +26,13 @@ function ImagesGrid() {
         return () => {
             window.removeEventListener('keydown', handleEscapeKey)
         }
-    }, [game])
+    }, [images])
 
-    const getColorImage = ({ imageTeam, flippedByTeam, isHint }: ImageCard) => {
+    const getColorImage = (imageId: string) => {
+        const { imageTeam, flippedByTeam, isHint } = getImage(images, imageId)
         if (isHint) return COLORS.HINT // Everyone can see the hint
 
-        const isColorVisibleByPlayer = myPlayer.isGameMaster || flippedByTeam || game.gameStatus === GameStatus.ENDED
+        const isColorVisibleByPlayer = myPlayer?.isGameMaster || flippedByTeam || gameStatus === 'finished'
         if (!isColorVisibleByPlayer) return 'transparent'
 
         if (imageTeam === 'teamBlue') return COLORS.BLUE
@@ -37,19 +41,21 @@ function ImagesGrid() {
         return COLORS.DEAD
     }
 
-    const getFilterImage = (image: ImageCard) => {
-        if (game.gameStatus === GameStatus.ENDED) return ''
-        if (image.flippedByTeam) return 'grayscale(100%)'
+    const getFilterImage = (imageId: string) => {
+        if (gameStatus === 'finished') return ''
+        if (getImage(images, imageId).flippedByTeam) return 'grayscale(100%)'
         return ''
     }
 
-    const modalImage = modalImageIndex < 0 ? undefined : game.images[modalImageIndex]
+    const modalImage = modalImageIndex < 0 ? undefined : Object.values(images).find(({ index }) => index === modalImageIndex)
 
-    const isButtonVisible = (image: ImageCard) =>
-        game.gameStatus === GameStatus.RUNNING &&
-        image.flippedByTeam === '' &&
-        !myPlayer.isGameMaster &&
-        game.teamPlaying === myPlayer.teamId
+    const isButtonVisible = (imageId: string) => {
+        const { flippedByTeam } = getImage(images, imageId)
+        return gameStatus === 'playing' &&
+            flippedByTeam === '' &&
+            !myPlayer?.isGameMaster &&
+            teamPlaying === myPlayer?.teamId
+    }
 
     const styles: Record<string, CSSProperties> = {
         // TODO: rework this to adapt row/col grid layout
@@ -82,11 +88,13 @@ function ImagesGrid() {
         }
     };
 
+    const imagesArr = useMemo(() => Object.values(images).sort((a, b) => a.index - b.index), [images])
+
     return (
         <>
             {/* TODO: Move into dedicated component */}
             {modalImage && <div className="modal-overlay">
-                <div className="modal" style={{ backgroundColor: getColorImage(modalImage) }}>
+                <div className="modal" style={{ backgroundColor: getColorImage(modalImage.imageId) }}>
                     <button className="close-button" onClick={() => setModalImageIndex(-1)}>
                         Close
                     </button>
@@ -94,23 +102,23 @@ function ImagesGrid() {
                 </div>
             </div>}
             <div style={styles.gridContainer}>
-                {game.images.map((image, index) => (
+                {imagesArr.map(({ imageId, index }) => (
                     <div key={index} style={styles.gridItem} >
                         <img
                             alt={`image-${index}`}
                             onClick={() => setModalImageIndex(index)}
-                            key={image.imageId}
-                            style={{ ...styles.img, filter: getFilterImage(image) }}
-                            src={`/images/${image.imageId}`} />
-                        <div className='flex-container-center' style={{ ...styles.containerButtons, backgroundColor: getColorImage(image) }}>
-                            {isButtonVisible(image) &&
-                                <button style={styles.button} onClick={() => hintCard(image)} >🤔</button>
+                            key={imageId}
+                            style={{ ...styles.img, filter: getFilterImage(imageId) }}
+                            src={`/images/${imageId}`} />
+                        <div className='flex-container-center' style={{ ...styles.containerButtons, backgroundColor: getColorImage(imageId) }}>
+                            {isButtonVisible(imageId) &&
+                                <button style={styles.button} onClick={() => hintCard({ imageId, player: myPlayer })} >🤔</button>
                             }
 
                             <span style={{ margin: '0 .8em' }}>{index}</span>
 
-                            {isButtonVisible(image) &&
-                                <button style={styles.button} onClick={() => choseCard({ imageId: image.imageId, player: myPlayer })} >👌</button>
+                            {isButtonVisible(imageId) &&
+                                <button style={styles.button} onClick={() => choseCard({ imageId, player: myPlayer })} >👌</button>
                             }
                         </div>
                     </div>

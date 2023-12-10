@@ -1,193 +1,429 @@
-import React, { ReactNode, createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
-import { Game, ImageCard, Player, TeamId } from '../models/model'
-import { ChoseImageOpts, choseCardFromGame, getDefaultGameData, hintCardFromGame, okNextTeamFromGame, setGameInWaitingBeforeStart, startGame, updatePlayerFromGame } from '../utils/game.utils'
-import { MESSAGES } from '../utils/peerjs.utils'
-import { OnMessageCb, usePeerJSContext } from './PeerJSContext'
+import { eq } from "lodash"
+import React, { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { Game, Player, Team, TeamId } from '../models/model'
+import { disableAllImagesHint, getImage, getOtherTeam, getRemainingNbImagesForTeam } from '../utils/game.utils'
+import { getImages } from '../utils/images.utils'
+import PeerJsWrapper, { MESSAGES, PeerJsClientMap } from '../utils/peerjs.utils'
 import { useToast } from './ToastContext'
 
+interface ImageActionOpts {
+    imageId: string,
+    player: Player
+}
 interface GameContextData {
-    game: Game
-    getMyPlayer: () => Player | undefined
-    hintCard: (image: ImageCard) => void
-    choseCard: (opts: ChoseImageOpts) => void,
-    OkNextTeam: () => void,
+    // PeerJS Status
+    peerId: string,
+    clientPingMsMap: Record<string, number>
+
+    // Game status
+    game: Game,
+    myPlayer: Player
+    gameId: string,
+    amIHost: () => boolean
+    isAClientOrHost: () => boolean
+
+    // myPlayerActions
+    hintCard: (opts: ImageActionOpts) => void
+    choseCard: (opts: ImageActionOpts) => void,
+    nextTeamToPlay: () => void,
     setMyPlayerName: (name: string) => void,
     setMyPlayerTeam: (team: TeamId, isGameMaster: boolean) => void,
     start: () => void,
     setInWaitingBeforeStart: () => void,
-    joinRoom: (id: string) => void
+    joinRoom: (id: string) => void,
 }
 
-type UpdateGameFromPreviousCb = (previousGame: Game) => Game
+const getDefaultPlayer = (peerId: string): Player => {
+    return {
+        id: peerId,
+        name: '',
+        teamId: '',
+        isGameMaster: false,
+    }
+}
 
 const GameContext = createContext<GameContextData | undefined>(undefined)
 
+/**
+ * Sends a message using PeerJSWrapper
+ *
+ * @function
+ * @param {MESSAGES} message - The type of message to send.
+ * @param {any} data - The data to send along with the message.
+ */
+const sendMessage = (message: MESSAGES, data: any) => {
+    PeerJsWrapper.sendMessage(message, data)
+}
+
+/**
+ * Creates a default team record with initial values.
+ *
+ * @function
+ * @returns {Record<TeamId, Team>} A record containing default team data.
+ */
+const defaultTeamRecord = (): Record<TeamId, Team> => ({
+    '': { nbTryLeft: 0, teamId: "" },
+    'teamBlue': { nbTryLeft: 0, teamId: "teamBlue" },
+    'teamRed': { nbTryLeft: 0, teamId: "teamRed" },
+})
+
+/**
+ * Creates a default game state with initial values.
+ *
+ * @function
+ * @returns {Game} A game object with default values.
+ */
+const defaultGame = (): Game => ({
+    gameStatus: 'waiting',
+    teams: defaultTeamRecord(),
+    images: {},
+    players: {},
+    teamPlaying: '',
+    winner: ''
+})
+
+/**
+ * React component for managing the game state and real-time communication using PeerJS.
+ *
+ * @component
+ */
 export const GameProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
 
     const { showToast } = useToast()
-    const { peerId, sendMessage, setOnMessageCb, connectToHost, amIHost, setOnPlayerDisconnectCb, setOnDisconnectHostCb } = usePeerJSContext()
-    const [myPlayerName, setMyPlayerName] = useState('')
 
-    /*
-        Related to UI utilization of useState
-        Track latest value in stale closure so via reference : see https://github.com/facebook/react/issues/16975#issuecomment-537178823
+    // Peer
+    const [peerId, setPeerId] = useState('')
+    const [hostId, setHostId] = useState('')
+    const [clientConnectionsMap, setClientConnectionsMap] = useState<PeerJsClientMap>({})
+    const clientPingMsMap = useMemo(() => {
+        const pingPerClient: Record<string, number> = {}
+        Object.keys(clientConnectionsMap).forEach(id => {
+            pingPerClient[id] = clientConnectionsMap[id].pingMs
+        })
+        return pingPerClient
+    }, [clientConnectionsMap])
+    const amIHost = () => !hostId
+    const isAClientOrHost = () => hostId ? true : false || Object.keys(clientConnectionsMap).length > 0
 
-        Important note Socket wrapper around game that's why you never have to
-        use setGame (but updateGame) elsewhere than:
-            - set gameId
-            - client receive instruction from server to update the game
-            - you are the host in the updateGame wrapper
-    */
-    const [game, setGame] = useState<Game>(getDefaultGameData())
-    const gameRef = useRef(game)
-    useEffect(() => {
-        gameRef.current = game
-    }, [game])
+    // Game
+    const gameId = hostId ? hostId : peerId
+    const [game, setGame] = useState<Game>(defaultGame)
 
-    useEffect(() => {
-        setGame(prev => ({ ...prev, gameId: peerId }))
-    }, [peerId])
+    // My Player
+    const [myPlayer, setMyPlayer] = useState<Player>(getDefaultPlayer(peerId));
+    const myPlayerRef = useRef<Player>(myPlayer)
+    useEffect(() => { myPlayerRef.current = myPlayer }, [myPlayer])
 
-    useEffect(() => {
-        if (!amIHost()) return
-        sendMessage(MESSAGES.UPDATE_GAME, game)
-    }, [game, amIHost, sendMessage])
+    /**
+     * Start a new game with initial settings:
+     * - Set the number of cards on the game
+     * - Set the number of tries for each team
+     * - Start with teamBlue
+     */
+    const start = (): void => {
+        setGame(game => ({
+            ...game,
+            images: getImages({
+                nbBlue: 7,
+                nbRed: 6,
+                nbNeutral: 2,
+                nbDead: 1
+            }),
+            teamPlaying: 'teamBlue',
+            teams: {
+                ...game.teams,
+                teamBlue: { teamId: 'teamBlue', nbTryLeft: 5 },
+                teamRed: { teamId: 'teamRed', nbTryLeft: 6 },
+            },
+            gameStatus: 'playing'
+        }))
+    }
 
-    const getMyPlayer = useCallback(() => {
-        return game.players[peerId]
-    }, [game, peerId])
+    /**
+     * Sets the game in waiting mode, before starting a new game.
+     * @returns {void}
+     */
+    const setInWaitingBeforeStart = (): void => {
+        setGame(game => ({
+            ...game,
+            gameStatus: 'waiting',
+            teams: defaultTeamRecord(),
+            images: {},
+            winner: ''
+        }))
+    }
 
-    const updateGame = useCallback((cb: UpdateGameFromPreviousCb) => {
-        if (!amIHost()) return
-        setGame(prev => cb(structuredClone(prev)))
-    }, [amIHost])
+    /**
+     * Update a player (eg, Pseudo update)
+     * @param player The player object to update.
+     * @returns {void}
+     */
+    const updatePlayer = useCallback((player: Player): void => {
+        if (hostId) return sendMessage(MESSAGES.UPDATE_PLAYER, player)
+        setGame(game => ({ ...game, players: { ...game.players, [player.id]: player } }))
+    }, [hostId])
 
-    const start = useCallback(() => {
-        updateGame(currentGame => startGame(currentGame))
-    }, [updateGame])
-
-    const setInWaitingBeforeStart = useCallback(() => {
-        updateGame(currentGame => setGameInWaitingBeforeStart(currentGame))
-    }, [updateGame])
-
-
-
-    const updatePlayer = useCallback((player: Player) => {
-        if (!amIHost()) return sendMessage(MESSAGES.UPDATE_PLAYER, player)
-        updateGame(currentGame => updatePlayerFromGame(currentGame, player))
-    }, [amIHost, sendMessage, updateGame])
-
-    const hintCard = useCallback((image: ImageCard) => {
-        if (!amIHost()) return sendMessage(MESSAGES.HINT_IMAGE, { image, player: getMyPlayer() })
-        updateGame(currentGame => hintCardFromGame(currentGame, image.imageId))
-    }, [amIHost, sendMessage, updateGame, getMyPlayer])
-
-    const OkNextTeam = useCallback(() => {
-        if (!amIHost()) return sendMessage(MESSAGES.OK_NEXT_TEAM, {})
-        updateGame(currentGame => okNextTeamFromGame(currentGame))
-    }, [amIHost, sendMessage, updateGame])
-
-    const choseCard = useCallback(({ imageId, player }: ChoseImageOpts) => {
-        if (!amIHost()) return sendMessage(MESSAGES.CHOSE_IMAGE, { imageId, player })
-        updateGame(currentGame => choseCardFromGame(currentGame, { imageId, player }))
-    }, [amIHost, sendMessage, updateGame])
-
-    const deletePlayer = useCallback((id: string) => {
-        const player = gameRef.current.players[id]
-        if (!player) return
-        showToast(`💔 ${player.name} left`)
-
-        updateGame(currentGame => {
-            const newGame = structuredClone(currentGame)
-            delete newGame.players[id]
+    // Hint a card so players can ping cards to team members
+    /**
+     * Provides a hint for a specific image in the game.
+     *
+     * @param {ImageActionOpts} options - The options for the image action, including the imageId and player.
+     * @returns {void}
+     */
+    const hintCard = useCallback(({ imageId, player }: ImageActionOpts): void => {
+        if (hostId) return sendMessage(MESSAGES.HINT_IMAGE, { imageId, player })
+        setGame(game => {
+            const newGame = { ...game }
+            newGame.images[imageId].isHint = !newGame.images[imageId].isHint
             return newGame
         })
-    }, [showToast, updateGame])
+    }, [hostId])
 
-    const setMyPlayerTeam = (teamId: TeamId, isGameMaster: boolean) => {
-        const myPlayer = getMyPlayer()
+    /**
+     * Sets the next team to play in the game.
+     * @returns {void}
+     */
+    const nextTeamToPlay = useCallback((): void => {
+        if (hostId) return sendMessage(MESSAGES.OK_NEXT_TEAM, {})
+        setGame(game => disableAllImagesHint({
+            ...game,
+            teamPlaying: getOtherTeam(game.teamPlaying)
+        }))
+    }, [hostId])
+
+    /**
+     * Handles the action of choosing a card.
+     *
+     *  - Decrease the number of tries for the player's team.
+     *  - Check for end-game case :
+     *      - dead card flipped
+     *      - all cards of the player's team have been flipped
+     *      - all cards of the opposing team have been flipped
+     *
+     * @param {ImageActionOpts} options - The options for the image action, including the imageId and player.
+     * @returns {void}
+     */
+    const choseCard = useCallback(({ imageId, player }: ImageActionOpts): void => {
+        if (hostId) return sendMessage(MESSAGES.CHOSE_IMAGE, { imageId, player })
+
+        const endGame = (teamIdWinner: TeamId) => {
+            setGame(game => disableAllImagesHint({
+                ...game,
+                gameStatus: 'finished',
+                winner: teamIdWinner
+            }))
+        }
+
+        const images = { ...game.images }
+        const teams = { ...game.teams }
+
+        const playerTeamId: TeamId = player.teamId
+        const otherTeamId: TeamId = getOtherTeam(playerTeamId)
+        const playerTeam = teams[playerTeamId]
+        const image = getImage(images, imageId)
+
+        image.flippedByTeam = playerTeamId
+        image.isHint = false
+        setGame(game => ({ ...game, images }))
+
+        playerTeam.nbTryLeft -= 1 // Player flipped a card, decrease the number of tries for his team
+        setGame(game => ({ ...game, teams }))
+
+        const imageTeam = image!.imageTeam
+        if (imageTeam !== playerTeamId) nextTeamToPlay()
+
+        // Losing cases, end the game
+        if (imageTeam === 'dead') return endGame(otherTeamId) // Player flipped the dead card
+        if (!getRemainingNbImagesForTeam(images, playerTeamId))
+            return endGame(playerTeamId) // All cards of the playerTeam have been flipped
+        if (!getRemainingNbImagesForTeam(images, otherTeamId))
+            return endGame(otherTeamId) // All cards of the playerTeam have been flipped
+
+    }, [game, hostId, nextTeamToPlay])
+
+
+    /**
+     * Sets the team and game master status for the current player.
+     *
+     * @param teamId - The ID of the team to assign to the player.
+     * @param isGameMaster - A boolean indicating whether the player is the game master.
+     * @throws {Error} - If the current player is not in the game.
+     */
+    const setMyPlayerTeam = (teamId: TeamId, isGameMaster: boolean): void => {
         if (!myPlayer) throw new Error('I do not have my player in game')
         myPlayer.teamId = teamId
         myPlayer.isGameMaster = isGameMaster
         if (!amIHost()) return sendMessage(MESSAGES.UPDATE_PLAYER, myPlayer)
-        updateGame(currentGame => updatePlayerFromGame(currentGame, myPlayer))
+        setGame(game => ({ ...game, players: { ...game.players, [peerId]: myPlayer } }))
     }
 
-    const joinRoom = (id: string) => {
-        connectToHost(id)
+    /**
+     * Connects to the host with the specified ID.
+     *
+     * @param id - The ID of the host to connect to.
+     * @returns {void}
+     */
+    const joinRoom = (id: string): void => {
+        PeerJsWrapper.connectToHost(id)
     }
 
+    /**
+     * Sets the name of the player.
+     *
+     * @param name - The new name for the player.
+     * @returns {void}
+     */
+    const setMyPlayerName = (name: string): void => {
+        updatePlayer({ ...myPlayer, id: peerId, name })
+    }
+
+    // Hooks
+
+    /**
+     * Initializes the peer connection.
+     * Executed once on mount
+     */
     useEffect(() => {
-        if (!peerId || !myPlayerName) return
-        const myPlayer = gameRef.current.players[peerId] ?? {
+        const init = async () => {
+            setPeerId(await PeerJsWrapper.init())
+        }
+        init()
+    }, [])
+
+    /**
+     * Dispatch game updates to clients
+     */
+    useEffect(() => {
+        if (hostId) return
+        sendMessage(MESSAGES.UPDATE_GAME, game)
+    }, [game, hostId])
+
+    /**
+     * Updates the player when the game.players array is updated
+     */
+    useEffect(() => {
+        const myPlayerFromPlayersArr = game.players[peerId]
+        if (eq(myPlayerFromPlayersArr, myPlayer)) return
+        setMyPlayer(myPlayerFromPlayersArr)
+    }, [peerId, myPlayer, game])
+
+
+    /**
+     * This hook manages various event listeners and updates related to the game and PeerJS communication.
+     * It handles actions such as handling player disconnects, managing host connections, receiving and processing messages,
+     * and cleaning up event listeners when the component unmounts.
+     *
+     * @function
+     *
+     * @returns {Function} A cleanup function to remove event listeners when the component unmounts.
+     */
+    useEffect(() => {
+
+        // Return myPlayer in a new game context
+        const myPlayerInRawGame: Player = {
+            ...myPlayerRef.current,
             teamId: '',
             isGameMaster: false,
-            id: peerId,
-            name: myPlayerName,
         }
 
-        updatePlayer({ ...myPlayer, name: myPlayerName, id: peerId })
-    }, [myPlayerName, peerId, updatePlayer])
+        /**
+         * Handler for when the current player disconnects from the host.
+         * Resets the game state and all players except myPlayer
+         */
+        const onDisconnectFromHost = () => {
+            setGame({
+                ...defaultGame(),
+                players: { [peerId]: myPlayerInRawGame },
+            })
+        }
 
-    useEffect(() => {
-        const onMessageCb: OnMessageCb = ({ message, data }) => {
+        /**
+          * Handler for when a client disconnects from the game.
+          * Displays a notification, removes the player from the game, and updates the game state.
+          *
+          * @param { string } id - The ID of the disconnected client.
+          */
+        const onDisconnectClient = (id: string) => {
+            const player = game.players[id]
+            if (!player) return
+            showToast(`💔 ${player.name} left`)
+            setGame(game => {
+                const newGame = { ...game }
+                delete newGame.players[id]
+                return newGame
+            })
+        }
+
+        // Set up event listeners for various PeerJS events
+
+        PeerJsWrapper.on('peerDisconnect', () => {
+            setPeerId('')
+        })
+        PeerJsWrapper.on('hostConnect', id => {
+            setHostId(id)
+            showToast('👋 Connected to the host')
+        })
+        PeerJsWrapper.on('hostDisconnect', () => {
+            setHostId('')
+            onDisconnectFromHost()
+            showToast('😢 Disconnected from the host')
+        })
+        PeerJsWrapper.on('clientUpdates', clients => {
+            setClientConnectionsMap({ ...clients })
+        })
+        PeerJsWrapper.on('clientDisconnect', (clientId, clients) => {
+            onDisconnectClient(clientId)
+            setClientConnectionsMap(clients)
+        })
+
+        // Handle incoming messages
+        PeerJsWrapper.on('message', ({ message, data }) => {
+
             // Host-received messages
-            if (message === MESSAGES.UPDATE_PLAYER) updatePlayer(data)
-            else if (message === MESSAGES.HINT_IMAGE) hintCard(data)
-            else if (message === MESSAGES.CHOSE_IMAGE) choseCard(data)
-            else if (message === MESSAGES.OK_NEXT_TEAM) OkNextTeam()
+            if (message === MESSAGES.UPDATE_PLAYER) return updatePlayer(data)
+            if (message === MESSAGES.HINT_IMAGE) return hintCard(data)
+            if (message === MESSAGES.CHOSE_IMAGE) return choseCard(data)
+            if (message === MESSAGES.OK_NEXT_TEAM) return nextTeamToPlay()
 
             // Client-received messages
-            else if (message === MESSAGES.UPDATE_GAME) setGame(data)
-            else if (message === MESSAGES.GET_PLAYER) updatePlayer({
-                id: peerId,
-                name: myPlayerName,
-                isGameMaster: false,
-                teamId: ''
-            })
-
-            else console.error('Unknown message: ', message, data); // TODO: shall we just ignore this
-        }
-        setOnMessageCb(onMessageCb)
-    }, [setGame, updatePlayer, hintCard, choseCard, OkNextTeam, setOnMessageCb, peerId, myPlayerName])
-
-    useEffect(() => {
-        setOnPlayerDisconnectCb(deletePlayer)
-    }, [deletePlayer, setOnPlayerDisconnectCb])
-
-    useEffect(() => {
-        setOnDisconnectHostCb(() => {
-            const newGame = getDefaultGameData()
-            newGame.gameId = peerId
-            newGame.players[peerId] = {
-                teamId: '',
-                isGameMaster: false,
-                id: peerId,
-                name: myPlayerName,
+            if (message === MESSAGES.UPDATE_GAME) {
+                setGame(data)
+                return
             }
-            setGame(newGame)
-        })
-    }, [myPlayerName, peerId, setOnDisconnectHostCb])
+            if (message === MESSAGES.GET_PLAYER) return updatePlayer(myPlayerInRawGame)
 
-    // ------- DEBUG -------
-    useEffect(() => { console.log('🔄 amIHost') }, [amIHost])
-    useEffect(() => { console.log('🔄 sendMessage') }, [sendMessage])
-    useEffect(() => { console.log('🔄 game', game) }, [game])
-    useEffect(() => { console.log('🔄 myPlayerName') }, [myPlayerName])
-    useEffect(() => { console.log('🔄 peerId', peerId) }, [peerId])
-    // ---------------------
+            console.error('Unknown message: ', message, data);
+        })
+
+        /**
+         * Cleanup function for removing event listeners when the component unmounts
+         */
+        return () => {
+            PeerJsWrapper.off('peerDisconnect')
+            PeerJsWrapper.off('hostConnect')
+            PeerJsWrapper.off('hostDisconnect')
+            PeerJsWrapper.off('clientUpdates')
+            PeerJsWrapper.off('clientDisconnect')
+            PeerJsWrapper.off('message')
+        }
+    }, [choseCard, game, hintCard, nextTeamToPlay, peerId, showToast, updatePlayer])
 
     const value: GameContextData = {
+        peerId,
+        myPlayer,
         game,
-        getMyPlayer,
+        gameId,
+        clientPingMsMap,
         hintCard,
         choseCard,
-        OkNextTeam,
+        nextTeamToPlay,
         setMyPlayerName,
         setMyPlayerTeam,
         start,
         setInWaitingBeforeStart,
-        joinRoom
+        joinRoom,
+        amIHost,
+        isAClientOrHost,
     }
 
     return (
