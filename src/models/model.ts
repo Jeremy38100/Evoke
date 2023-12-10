@@ -5,17 +5,14 @@ export interface Player {
   isGameMaster: boolean
 }
 
-export enum GameStatus {
-  WAITING_TO_START = 1,
-  RUNNING = 2,
-  ENDED = 3,
-}
+export type GameStatus = 'waiting' | 'playing' | 'finished'
 
 export interface ImageCard {
   imageId: string,
   imageTeam: TeamId | "neutral" | "dead",
   flippedByTeam: TeamId
   isHint: boolean
+  index: number, // Index in grid
 }
 
 export type TeamId = 'teamRed' | 'teamBlue' | ''
@@ -26,12 +23,11 @@ export interface Team {
 }
 
 export interface Game {
-  gameId: string
-  teams: Team[]
+  teams: Record<TeamId, Team>
   players: Record<string, Player>
   gameStatus: GameStatus
   teamPlaying: TeamId
-  images: ImageCard[]
+  images: Record<string, ImageCard>
   winner: TeamId
 }
 

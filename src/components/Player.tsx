@@ -1,5 +1,4 @@
 import { useGameContext } from '../context/GameContext'
-import { usePeerJSContext } from '../context/PeerJSContext'
 
 export interface PlayerCompProps {
     name: string
@@ -9,11 +8,10 @@ export interface PlayerCompProps {
 
 function Player({ name, id, teamId }: PlayerCompProps) {
 
-    const { game } = useGameContext()
-    const { getPlayerPingMs } = usePeerJSContext()
-    const isHost = id === game.gameId
+    const { gameId, clientPingMsMap } = useGameContext()
+    const isHost = id === gameId
 
-    const pingMs = getPlayerPingMs(id) // only the host can get the ping of other players
+    const pingMs = clientPingMsMap[id] // only the host can get the ping of other players
 
     return (
         <p className={`playerName ${teamId}`} >

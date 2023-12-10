@@ -32,7 +32,7 @@ export type OnClientsUpdate = (clientId: string, clients: PeerJsClientMap) => vo
 export interface PeerJsWrapperEvent {
   peerDisconnect: () => void
   message: OnMessageCb
-  hostConnect: () => void
+  hostConnect: (hostId: string) => void
   hostDisconnect: () => void
   clientUpdates: (clients: PeerJsClientMap) => void
   clientDisconnect: OnClientsUpdate
@@ -57,13 +57,11 @@ class PeerJsWrapper extends EventEmitter<PeerJsWrapperEvent> {
   private sendToClient(clientId: string, message: SocketMessage) {
     const client = this.clients[clientId]
     if (!client) throw new Error(`Client ${clientId} not found, can not send message`)
-    console.log(`⬆️ to Client ${clientId}`, message)
     client.connection.send(message)
   }
 
   private sendToHost(message: SocketMessage) {
     if (!this.host) throw new Error('Host not found, can not send message')
-    console.log(`⬆️ to Host ${this.host.peer}`, message)
     this.host.send(message)
   }
 
@@ -213,7 +211,7 @@ class PeerJsWrapper extends EventEmitter<PeerJsWrapperEvent> {
     const hostConnection = this.peer.connect(hostId)
     hostConnection.on('open', () => {
       this.host = hostConnection
-      this.emit('hostConnect')
+      this.emit('hostConnect', hostId)
     })
     hostConnection.on('data', (data) => this.onData(data as SocketMessage, hostId))
     hostConnection.on('close', () => this.onHostDisconnection(hostId))
