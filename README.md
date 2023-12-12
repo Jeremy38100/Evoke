@@ -75,7 +75,7 @@ Here are some tasks and features that we plan to implement in the future:
   - [ ] Add a tutorial or onboarding process for new players.
 - Quality of Life
   - [ ] Change favicon
-  - [ ] Better handle disconnection
+  - [X] Better handle disconnection
   - [ ] Fancy animations
   - [ ] Improve UI
   - [ ] Rework modal to handle click outside
@@ -84,3 +84,4 @@ Here are some tasks and features that we plan to implement in the future:
   - [ ] Build and Deploy
   - [ ] Full e2e test
   - [X] Playwright test with host/clients
+  - [ ] 🎉 Rework implementing singals
