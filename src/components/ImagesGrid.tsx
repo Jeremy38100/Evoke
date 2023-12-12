@@ -1,7 +1,88 @@
+import { chunk } from 'lodash'
 import { CSSProperties, useEffect, useMemo, useState } from 'react'
-import { useGameContext } from '../context/GameContext'
-import { COLORS } from '../utils/images.utils'
+import { ImageActionCb, useGameContext } from '../context/GameContext'
+import { GameStatus, ImageCard, Player, TeamId } from '../models/model'
 import { getImage } from '../utils/game.utils'
+import { COLORS } from '../utils/images.utils'
+import './ImageGrid.css'
+
+const getColorImage = ({ imageTeam, isHint }: ImageCard) => {
+    if (isHint) return COLORS.HINT
+    if (imageTeam === 'teamBlue') return COLORS.BLUE
+    if (imageTeam === 'teamRed') return COLORS.RED
+    if (imageTeam === 'neutral') return COLORS.NEUTRAL
+    return COLORS.DEAD
+}
+
+interface ImageCellProps {
+    myPlayer: Player,
+    image: ImageCard
+    gameStatus: GameStatus
+    teamPlaying: TeamId,
+    hintCard: ImageActionCb,
+    choseCard: ImageActionCb,
+    setModalImageIndex: (index: number) => void,
+}
+function ImageCell({ myPlayer, image, gameStatus, teamPlaying, hintCard, choseCard, setModalImageIndex }: ImageCellProps) {
+
+    const { isHint, flippedByTeam, imageTeam, index } = image
+
+    const isButtonVisible = () => {
+        return gameStatus === 'playing' &&
+            flippedByTeam === '' &&
+            !myPlayer?.isGameMaster &&
+            teamPlaying === myPlayer?.teamId
+    }
+
+    const cellStyle = (): CSSProperties => {
+        const isColorVisibleByPlayer = isHint || myPlayer?.isGameMaster || flippedByTeam || gameStatus === 'finished'
+        if (!isColorVisibleByPlayer) return {}
+        const style: CSSProperties = { background: getColorImage(image) }
+        if (flippedByTeam) return { ...style, opacity: 0.5 }
+        return style
+
+    }
+
+    const isCorrectFlip = () => flippedByTeam === imageTeam
+    const isDead = () => imageTeam === 'dead'
+
+    const hintCardWithMyPlayer = ({ imageId }: ImageCard) => hintCard({ imageId, player: myPlayer })
+    const choseCardWithMyPlayer = ({ imageId }: ImageCard) => choseCard({ imageId, player: myPlayer })
+
+    const getFlipText = () => {
+        if (isCorrectFlip()) return '✅'
+        if (isDead()) return '💀'
+        return '❌'
+    }
+
+    return (
+        <div className='cell' style={cellStyle()} >
+            <div className='imgContainer'>
+                <img alt={`image-${image.imageId}`}
+                    className='img'
+                    onClick={() => setModalImageIndex(index)}
+                    src={`/images/${image.imageId}`}
+                />
+            </div>
+            <div className='buttonsContainer'>
+                {!flippedByTeam ? <>
+
+                    {isButtonVisible() &&
+                        <button className='img-button' onClick={() => hintCardWithMyPlayer(image)} >💡</button>
+                    }
+
+                    <span style={{ margin: '0 .8em' }}>{index}</span>
+
+                    {isButtonVisible() &&
+                        <button className='img-button' onClick={() => choseCardWithMyPlayer(image)} >👌</button>
+                    }
+                </> : <span>{getFlipText()}</span>}
+            </div>
+
+        </div>
+    )
+}
+
 
 function ImagesGrid() {
 
@@ -29,6 +110,7 @@ function ImagesGrid() {
     }, [images])
 
     const getColorImage = (imageId: string) => {
+        // TODO: merge with other function
         const { imageTeam, flippedByTeam, isHint } = getImage(images, imageId)
         if (isHint) return COLORS.HINT // Everyone can see the hint
 
@@ -41,54 +123,22 @@ function ImagesGrid() {
         return COLORS.DEAD
     }
 
-    const getFilterImage = (imageId: string) => {
-        if (gameStatus === 'finished') return ''
-        if (getImage(images, imageId).flippedByTeam) return 'grayscale(100%)'
-        return ''
-    }
-
     const modalImage = modalImageIndex < 0 ? undefined : Object.values(images).find(({ index }) => index === modalImageIndex)
 
-    const isButtonVisible = (imageId: string) => {
-        const { flippedByTeam } = getImage(images, imageId)
-        return gameStatus === 'playing' &&
-            flippedByTeam === '' &&
-            !myPlayer?.isGameMaster &&
-            teamPlaying === myPlayer?.teamId
-    }
+    const imagesGrid = useMemo<ImageCard[][]>(() => {
+        const sortedImages = Object.values(images).sort((a, b) => a.index - b.index)
+        return chunk(sortedImages, Math.ceil(Math.sqrt(sortedImages.length)))
+    }, [images])
 
-    const styles: Record<string, CSSProperties> = {
-        // TODO: rework this to adapt row/col grid layout
-        gridContainer: {
-            display: 'grid',
-            gridTemplateColumns: 'repeat(4, 1fr)',
-            width: 'min(95vh, 95vw)',
-            height: 'min(95vh, 95vw)',
-        },
-        gridItem: {
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            margin: 8,
-            flexDirection: 'column',
-        },
-        img: {
-            borderRadius: 6,
-            width: 'calc(100% - 2rem)',
-            maxWidth: '100%',
-            height: 'auto',
-        },
-        containerButtons: {
-            width: 'calc(100% - 2rem)',
-            borderRadius: 6,
-        },
-        button: {
-            padding: '.1em .6em',
-            margin: 0
-        }
-    };
-
-    const imagesArr = useMemo(() => Object.values(images).sort((a, b) => a.index - b.index), [images])
+    const imageCellProps = (image: ImageCard): ImageCellProps => ({
+        choseCard,
+        hintCard,
+        gameStatus,
+        teamPlaying,
+        myPlayer,
+        setModalImageIndex,
+        image,
+    })
 
     return (
         <>
@@ -101,28 +151,16 @@ function ImagesGrid() {
                     <img src={`/images/${modalImage.imageId}`} alt="Modal" className="modal-image" />
                 </div>
             </div>}
-            <div style={styles.gridContainer}>
-                {imagesArr.map(({ imageId, index }) => (
-                    <div key={index} style={styles.gridItem} >
-                        <img
-                            alt={`image-${index}`}
-                            onClick={() => setModalImageIndex(index)}
-                            key={imageId}
-                            style={{ ...styles.img, filter: getFilterImage(imageId) }}
-                            src={`/images/${imageId}`} />
-                        <div className='flex-container-center' style={{ ...styles.containerButtons, backgroundColor: getColorImage(imageId) }}>
-                            {isButtonVisible(imageId) &&
-                                <button style={styles.button} onClick={() => hintCard({ imageId, player: myPlayer })} >🤔</button>
-                            }
-
-                            <span style={{ margin: '0 .8em' }}>{index}</span>
-
-                            {isButtonVisible(imageId) &&
-                                <button style={styles.button} onClick={() => choseCard({ imageId, player: myPlayer })} >👌</button>
-                            }
+            <div id='grid-container'>
+                <div id='grid' className='grid'>
+                    {imagesGrid.map((imagesRow, rowIndex) => (
+                        <div key={rowIndex} className='row'>
+                            {imagesRow.map((image, colIndex) => (
+                                <ImageCell key={rowIndex + '-' + colIndex} {...imageCellProps(image)} />
+                            ))}
                         </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
             </div>
         </>
     )

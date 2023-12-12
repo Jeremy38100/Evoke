@@ -20,8 +20,8 @@ function shuffleArray<T>(array: T[]): T[] {
 export const COLORS = {
     BLUE: '#7eb0d5',
     RED: '#fd7f6f',
-    NEUTRAL: '#474747',
-    DEAD: '#ffee65',
+    NEUTRAL: 'rgb(194 185 171)',
+    DEAD: '#474747',
     HINT: '#568251',
 }
 

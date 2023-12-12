@@ -6,10 +6,13 @@ import { getImages } from '../utils/images.utils'
 import PeerJsWrapper, { MESSAGES, PeerJsClientMap } from '../utils/peerjs.utils'
 import { useToast } from './ToastContext'
 
-interface ImageActionOpts {
+export interface ImageActionOpts {
     imageId: string,
     player: Player
 }
+
+export type ImageActionCb = (opts: ImageActionOpts) => void
+
 interface GameContextData {
     // PeerJS Status
     peerId: string,

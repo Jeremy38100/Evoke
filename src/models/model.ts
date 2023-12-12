@@ -6,10 +6,11 @@ export interface Player {
 }
 
 export type GameStatus = 'waiting' | 'playing' | 'finished'
+export type ImageTeam = TeamId | "neutral" | "dead"
 
 export interface ImageCard {
   imageId: string,
-  imageTeam: TeamId | "neutral" | "dead",
+  imageTeam: ImageTeam,
   flippedByTeam: TeamId
   isHint: boolean
   index: number, // Index in grid

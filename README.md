@@ -1,11 +1,17 @@
 # Evoke - A Multiplayer Word Guessing Game
 
-![GitHub Workflow Status](https://github.com/Jeremy38100/Evoke/actions/workflows/merge-master.yml/badge.svg)
-![GitHub last commit](https://img.shields.io/github/last-commit/Jeremy38100/Evoke)
-![GitHub top language](https://img.shields.io/github/languages/top/Jeremy38100/Evoke)
-![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/Jeremy38100/Evoke)
+<p align="center">
+    <img width="180" src="https://i.ibb.co/gSRPV9n/logo.webp" alt="Logo">
+</p>
 
-Evoke is a fun and interactive game where players try to guess words based on cards related to those words. This game is designed to offer an exciting and entertaining multiplayer experience.
+<p align="center">
+   <span><img src="https://github.com/Jeremy38100/Evoke/actions/workflows/merge-master.yml/badge.svg" alt="CI"></span>
+   <span><img src="https://img.shields.io/github/last-commit/Jeremy38100/Evoke" alt="last commit"</span>
+   <span><img src="https://img.shields.io/github/languages/top/Jeremy38100/Evoke" alt="language"</span>
+   <span><img src="https://img.shields.io/github/languages/code-size/Jeremy38100/Evoke" alt="code size"</span>
+</p>
+
+> * [ ] Evoke is a fun and interactive game where players try to guess words based on cards related to those words. This game is designed to offer an exciting and entertaining multiplayer experience.
 
 ## Technologies Used
 
@@ -53,17 +59,19 @@ Follow these steps to set up and run the project locally on your machine:
 
 Make sure you installed playwright (in addition of `npm install`)
 
-   ```bash
+```bash
    npx playwright install --with-deps
-   ```
+```
 
 To run the tests in this project, run
 
-   ```bash
+```bash
    npm run test
-   ```
+```
 
 This will build the project, and run a web server on port 4173 then run tests
+
+**Notes :** It is recommended to install and use Microsoft [Playwright VSCode extension](https://marketplace.visualstudio.com/items?itemName=ms-playwright.playwright "link").
 
 ## To-Do
 
